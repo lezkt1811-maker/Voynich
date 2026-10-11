@@ -63,4 +63,15 @@ array of `{folio, figure, hair, contextHumor, blind}`:
 node read.js --hair-log observations.json
 ```
 
+## Cipher Lab (stage 1)
+
+`docs/lab.html` is a separate workbench for testing your own EVA cipher. It
+has an EVA analyzer (counts, frequencies, repeats, affixes, search, n-grams),
+a cipher builder (your rules, applied literally, with the rule shown for every
+piece; or a pattern view with no meanings), a folio database with separate
+fields for observation, hypothesis and evidence against, and JSON/CSV export
+and import. Everything is saved in your browser only, so download a backup
+from the Data section. The logic is in `docs/lab-core.js` and is tested in
+`test/lab-core.test.js`.
+
 Tests: `node --test test/*.test.js`

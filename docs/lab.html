@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voynich Cipher Lab</title>
+<style>
+/* Dark research-archive look. Accents are violet, pink and cyan; no yellow or lime. */
+:root {
+  --bg: #050508; --panel: #0c0b12; --panel2: #15121d; --ink: #f0edf5; --muted: #a79fb4;
+  --violet: #8b00ff; --violet-soft: #2a0a4d; --pink: #ff007f; --pink-soft: #3d0320;
+  --cyan: #00f0ff; --cyan-soft: #04303a; --line: #2b2338; --line2: #443657;
+  --display: Georgia, "Times New Roman", serif; --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --mono: ui-monospace, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 var(--body); }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 16px; display: grid; gap: 18px; }
+h1 { font: 700 1.7rem/1.15 var(--display); margin: 0; color: var(--ink); }
+h2 { font: 600 1.3rem var(--display); margin: 0 0 4px; }
+h3 { font: 600 1.05rem var(--body); margin: 0; }
+p { margin: 0; color: var(--muted); max-width: 70ch; }
+code, .mono { font-family: var(--mono); font-size: .92rem; overflow-wrap: anywhere; }
+.banner { background: var(--pink-soft); border: 1px solid var(--pink); color: var(--ink); border-radius: 8px; padding: 12px 14px; font-size: .95rem; }
+nav { display: flex; flex-wrap: wrap; gap: 8px; position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--line); }
+nav button { min-height: 48px; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line2); background: var(--panel); color: var(--ink); font: inherit; cursor: pointer; }
+nav button[aria-pressed="true"] { border-color: var(--cyan); box-shadow: inset 0 -3px 0 var(--cyan); }
+.view { display: none; gap: 18px; }
+.view.on { display: grid; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.grid2 { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .grid2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+label { display: grid; gap: 6px; font-size: .95rem; color: var(--ink); }
+label.inline { display: flex; align-items: center; gap: 8px; min-height: 48px; }
+input, select, textarea { font: inherit; color: var(--ink); background: var(--panel2); border: 1px solid var(--line2); border-radius: 8px; padding: 10px 12px; min-height: 48px; width: 100%; }
+textarea { min-height: 9rem; font-family: var(--mono); font-size: .95rem; resize: vertical; }
+input[type="checkbox"] { width: 22px; height: 22px; min-height: 22px; accent-color: var(--violet); }
+input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+.btns { display: flex; flex-wrap: wrap; gap: 10px; }
+button.act, button.ghost, button.danger { min-height: 48px; padding: 10px 16px; border-radius: 8px; font: 600 1rem var(--body); cursor: pointer; }
+button.act { background: var(--violet); color: #fff; border: 0; }
+button.ghost { background: none; color: var(--cyan); border: 1px solid var(--cyan); }
+button.danger { background: none; color: var(--pink); border: 1px solid var(--pink); }
+.msg { min-height: 1.4em; font-size: .95rem; color: var(--cyan); }
+.msg.err { color: var(--pink); }
+.stats { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.stat { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 2px; }
+.stat b { font: 600 1.6rem var(--display); }
+.stat span { font-size: .88rem; color: var(--muted); }
+.stat.key { border-color: var(--violet); }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .95rem; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; }
+tr.pick td { background: var(--violet-soft); }
+.pill { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: .85rem; background: var(--cyan-soft); color: var(--cyan); }
+.pill.pink { background: var(--pink-soft); color: var(--pink); }
+.pill.muted { background: var(--panel2); color: var(--muted); }
+.note { font-size: .9rem; color: var(--muted); }
+.tokens { display: flex; flex-wrap: wrap; gap: 8px; }
+.tok { border: 1px solid var(--line2); border-radius: 8px; padding: 6px 8px; display: grid; gap: 2px; min-width: 5rem; }
+.tok.open { border-color: var(--cyan); }
+.tok.unmapped { border-color: var(--pink); }
+.piece { font-family: var(--mono); }
+.piece.rule { color: var(--cyan); }
+.piece.none { color: var(--pink); }
+.piece small { color: var(--muted); display: block; font-family: var(--body); }
+.sbs { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .sbs { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.locus { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
+details summary { cursor: pointer; min-height: 48px; display: flex; align-items: center; color: var(--cyan); }
+footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Voynich Cipher Lab</h1>
+    <p>A workbench for testing a personal EVA cipher. It keeps the manuscript text, the rules you propose, and your hypotheses in separate places.</p>
+  </header>
+  <div class="banner" role="note">The Voynich Manuscript has not been deciphered. Nothing this lab produces is a translation. Every reading shows the rule that made it, and any meaning you write is your hypothesis, not a finding.</div>
+  <div class="banner" id="store-note" role="note"></div>
+
+  <nav aria-label="Lab sections">
+    <button type="button" data-view="dash" aria-pressed="true">Dashboard</button>
+    <button type="button" data-view="analyzer" aria-pressed="false">EVA Analyzer</button>
+    <button type="button" data-view="cipher" aria-pressed="false">Cipher Builder</button>
+    <button type="button" data-view="folios" aria-pressed="false">Folio Explorer</button>
+    <button type="button" data-view="data" aria-pressed="false">Data</button>
+  </nav>
+
+  <!-- DASHBOARD -->
+  <section class="view on" id="v-dash" aria-label="Dashboard">
+    <div class="stats" id="dash-stats"></div>
+    <div class="card">
+      <h2>Unmapped tokens</h2>
+      <p>Counts for the text in the Cipher Builder under your current rules. Untouched tokens have no rule at all.</p>
+      <div id="dash-unmapped" class="note"></div>
+    </div>
+    <div class="card">
+      <h2>Recently edited</h2>
+      <div id="dash-recent" class="note"></div>
+    </div>
+    <div class="card">
+      <h2>Quick actions</h2>
+      <div class="btns">
+        <button class="act" type="button" data-go="analyzer">Analyse a passage</button>
+        <button class="act" type="button" data-go="cipher">Add a cipher rule</button>
+        <button class="act" type="button" data-go="folios">Add a folio record</button>
+        <button class="ghost" type="button" data-go="data">Back up my research</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- EVA ANALYZER -->
+  <section class="view" id="v-analyzer" aria-label="EVA Analyzer">
+    <div class="card">
+      <h2>EVA text</h2>
+      <p>Paste transcription as it is. The original text is kept as you entered it; the normalized form is shown separately.</p>
+      <label>Transcription
+        <textarea id="an-src" spellcheck="false" placeholder="Paste an EVA transcription, plain or IVTFF."></textarea>
+      </label>
+      <div class="btns">
+        <label class="inline"><input type="checkbox" id="an-conv" checked> Strip transcription markup</label>
+        <label class="inline"><input type="checkbox" id="an-spaces"> Count spaces</label>
+        <label class="inline"><input type="checkbox" id="an-punct"> Count dots as separators</label>
+      </div>
+      <p class="note">Strip markup removes IVTFF locus tags, comments and annotations before counting. Turn it off to count the markup as written.</p>
+    </div>
+    <div class="stats" id="an-stats"></div>
+    <div class="grid2">
+      <div class="card"><h3>Character frequency</h3><div class="tbl" id="an-chars"></div></div>
+      <div class="card"><h3>Word frequency</h3><div class="tbl" id="an-words"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Repeated words</h3><div class="tbl" id="an-rep"></div></div>
+      <div class="card"><h3>First and last characters</h3><div class="tbl" id="an-fl"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Prefixes</h3><div class="tbl" id="an-pre"></div></div>
+      <div class="card"><h3>Suffixes</h3><div class="tbl" id="an-suf"></div></div>
+    </div>
+    <div class="card">
+      <h3>Search</h3>
+      <div class="btns">
+        <label style="flex:1 1 220px">Character, word or sequence <input id="an-q" placeholder="e.g. daiin"></label>
+        <label class="inline"><input type="checkbox" id="an-whole"> whole word only</label>
+      </div>
+      <div id="an-hits" class="note"></div>
+    </div>
+    <div class="card">
+      <h3>Repeated sequences</h3>
+      <p>Computational observations only. A recurring sequence is not a translation.</p>
+      <div class="btns">
+        <label>Length
+          <select id="an-n"><option>2</option><option selected>3</option><option>4</option></select>
+        </label>
+      </div>
+      <div class="tbl" id="an-grams"></div>
+    </div>
+    <div class="card">
+      <h3>Normalized text</h3>
+      <pre class="mono" id="an-norm" style="white-space:pre-wrap;margin:0"></pre>
+    </div>
+  </section>
+
+  <!-- CIPHER BUILDER -->
+  <section class="view" id="v-cipher" aria-label="Cipher Builder">
+    <div class="card">
+      <h2 id="rule-heading">New cipher rule</h2>
+      <p>A rule states exactly what it replaces and what you propose it means. Nothing is applied unless a rule exists.</p>
+      <form id="rule-form" class="grid2" novalidate>
+        <label>Kind
+          <select id="r-type"><option value="sequence">Sequence (inside a word)</option><option value="word">Whole word</option></select>
+        </label>
+        <label>EVA source <input id="r-source" required placeholder="e.g. daiin" autocomplete="off" spellcheck="false"></label>
+        <label>Proposed meaning <input id="r-meaning" required placeholder="your hypothesis"></label>
+        <label>Category <select id="r-cat"></select></label>
+        <label>Confidence <select id="r-conf"></select></label>
+        <label>Folio where it came from <input id="r-folio" placeholder="e.g. f78r"></label>
+        <label style="grid-column:1/-1">Explanation <textarea id="r-expl" rows="2"></textarea></label>
+        <label style="grid-column:1/-1">Supporting evidence <textarea id="r-evid" rows="2"></textarea></label>
+        <label style="grid-column:1/-1">Notes, including evidence against <textarea id="r-notes" rows="2"></textarea></label>
+        <div class="btns" style="grid-column:1/-1">
+          <button class="act" type="submit">Save rule</button>
+          <button class="ghost" type="button" id="r-clear">Clear form</button>
+        </div>
+        <div class="msg" id="rule-msg" style="grid-column:1/-1" role="status"></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Your rules</h2>
+      <div class="tbl" id="rules-tbl"></div>
+    </div>
+
+    <div class="card">
+      <h2>Apply the rules to a passage</h2>
+      <p>Mode A applies only your rules. Mode B looks for recurring sequences and attaches no meanings.</p>
+      <label>Passage <textarea id="cb-src" spellcheck="false" placeholder="Paste EVA here, or leave blank to use the EVA Analyzer text."></textarea></label>
+      <div class="btns">
+        <label>Sequence priority
+          <select id="cb-prio"><option value="longest">Longest rule first</option><option value="listed">Order rules were entered</option></select>
+        </label>
+        <button class="act" type="button" id="cb-a">Mode A: apply my rules</button>
+        <button class="ghost" type="button" id="cb-b">Mode B: find patterns</button>
+      </div>
+      <div class="msg" id="cb-msg" role="status"></div>
+      <div id="cb-out"></div>
+    </div>
+  </section>
+
+  <!-- FOLIO EXPLORER -->
+  <section class="view" id="v-folios" aria-label="Folio Explorer">
+    <div class="card">
+      <h2 id="folio-heading">New folio record</h2>
+      <p>Keep what you observed, what you propose, and what cuts against it in separate fields.</p>
+      <form id="folio-form" class="grid2" novalidate>
+        <label>Folio <input id="f-folio" required placeholder="e.g. f78r"></label>
+        <label>Section <input id="f-section" placeholder="e.g. balneological"></label>
+        <label style="grid-column:1/-1">EVA transcription <textarea id="f-trans" rows="3" spellcheck="false"></textarea></label>
+        <label style="grid-column:1/-1">Illustration description (what is visible) <textarea id="f-ill" rows="2"></textarea></label>
+        <label>Botanical observations <textarea id="f-bot" rows="2"></textarea></label>
+        <label>Figures (hair, pose, objects) <textarea id="f-fig" rows="2"></textarea></label>
+        <label>Zodiac or astronomical observations <textarea id="f-ast" rows="2"></textarea></label>
+        <label>Proposed interpretation (your hypothesis) <textarea id="f-int" rows="2"></textarea></label>
+        <label>Alternative interpretations <textarea id="f-alt" rows="2"></textarea></label>
+        <label>Evidence for <textarea id="f-for" rows="2"></textarea></label>
+        <label>Evidence against <textarea id="f-against" rows="2"></textarea></label>
+        <label>Sources (references, transcription used) <textarea id="f-src" rows="2"></textarea></label>
+        <label>Confidence <select id="f-conf"></select></label>
+        <label>Research status <select id="f-status"></select></label>
+        <label style="grid-column:1/-1">Personal notes <textarea id="f-notes" rows="2"></textarea></label>
+        <div class="btns" style="grid-column:1/-1">
+          <button class="act" type="submit">Save folio</button>
+          <button class="ghost" type="button" id="f-dup">Duplicate</button>
+          <button class="ghost" type="button" id="f-new">New record</button>
+          <button class="danger" type="button" id="f-del">Delete</button>
+        </div>
+        <div class="msg" id="folio-msg" style="grid-column:1/-1" role="status"></div>
+      </form>
+    </div>
+
+    <div class="card" id="rel-card" hidden>
+      <h3>Related folios</h3>
+      <p>A link needs a reason you can state. Similar-looking drawings are not a reason on their own.</p>
+      <div class="btns">
+        <label style="flex:1 1 140px">Other folio <input id="rel-folio" placeholder="e.g. f79r"></label>
+        <label style="flex:2 1 260px">Why you think they are related <input id="rel-reason"></label>
+        <button class="act" type="button" id="rel-add">Add link</button>
+      </div>
+      <div id="rel-list" class="note"></div>
+    </div>
+
+    <div class="card">
+      <label>Search records <input id="fs-q" placeholder="folio, text or note"></label>
+      <div class="tbl" id="folio-tbl"></div>
+    </div>
+  </section>
+
+  <!-- DATA -->
+  <section class="view" id="v-data" aria-label="Data">
+    <div class="card">
+      <h2>Backup</h2>
+      <p id="data-reminder" class="note"></p>
+      <div class="btns">
+        <button class="act" type="button" id="x-json">Download backup (JSON)</button>
+        <button class="ghost" type="button" id="x-folio-csv">Folios as CSV</button>
+        <button class="ghost" type="button" id="x-rule-csv">Cipher rules as CSV</button>
+      </div>
+      <div class="msg" id="x-msg" role="status"></div>
+    </div>
+    <div class="card">
+      <h2>Import a backup</h2>
+      <p>Imported files are checked before anything changes. By default, records already in the lab are kept and only new ids are added.</p>
+      <label>Backup file <input type="file" id="i-file" accept="application/json,.json"></label>
+      <div class="btns">
+        <button class="act" type="button" id="i-merge">Add new records</button>
+        <button class="danger" type="button" id="i-replace">Replace everything in the lab</button>
+      </div>
+      <div class="msg" id="i-msg" role="status"></div>
+      <ul id="i-errors" class="note"></ul>
+    </div>
+    <div class="card">
+      <h2>Clear research data</h2>
+      <p>Removes every folio and rule saved in this browser.</p>
+      <div class="btns"><button class="danger" type="button" id="clear">Clear all research data</button></div>
+    </div>
+  </section>
+
+  <footer>All data stays in this browser unless you export it. Speculative research tool; nothing here is medical advice.</footer>
+</div>
+
+<script src="reader.js"></script>
+<script src="lab-core.js"></script>
+<script>
+(function () {
+  const L = window.VoynichLab;
+  const KEY = "voynich-lab-v1", SAMPLE_KEY = "voynich-lab-sample";
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const now = () => new Date().toISOString();
+
+  // ---- storage: every read and write is guarded, because browsers can refuse it
+  let storeOK = true;
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (!raw) return { folios: [], rules: [] };
+      const v = L.validateBackup(JSON.parse(raw));
+      if (v.ok) return v.data;
+      return { folios: [], rules: [] };
+    } catch (e) { storeOK = false; return { folios: [], rules: [] }; }
+  }
+  let state = loadState();
+  function save() {
+    try { localStorage.setItem(KEY, L.exportBackup(state)); }
+    catch (e) { storeOK = false; setStoreNote(); }
+  }
+  function setStoreNote() {
+    $("store-note").textContent = storeOK
+      ? "Saved in this browser only. Clearing site data or using another browser will not show these records. Download a backup from the Data section regularly."
+      : "This browser will not save research data here (storage is blocked). Work is kept only on this page until you reload. Download a backup before leaving.";
+    $("data-reminder").textContent = $("store-note").textContent;
+  }
+
+  // ---- navigation
+  function show(view) {
+    for (const b of document.querySelectorAll("nav button")) b.setAttribute("aria-pressed", String(b.dataset.view === view));
+    for (const s of document.querySelectorAll(".view")) s.classList.toggle("on", s.id === "v-" + view);
+    if (view === "dash") renderDash();
+    window.scrollTo(0, 0);
+  }
+  document.querySelector("nav").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) show(b.dataset.view); });
+  document.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => show(b.dataset.go)));
+
+  function fillSelect(id, values, pick) {
+    $(id).innerHTML = values.map((v) => `<option${v === pick ? " selected" : ""}>${esc(v)}</option>`).join("");
+  }
+  fillSelect("r-cat", L.CATEGORIES, "Unknown");
+  fillSelect("r-conf", L.CONFIDENCE, "low");
+  fillSelect("f-conf", L.CONFIDENCE, "low");
+  fillSelect("f-status", L.STATUS, "unreviewed");
+
+  // ---- dashboard
+  function renderDash() {
+    const sample = $("cb-src").value.trim() || $("an-src").value.trim();
+    const d = L.dashboard(state, sample, { conventions: true });
+    $("dash-stats").innerHTML = [
+      ["Folio records", d.folios], ["Cipher rules", d.rules],
+      ["Untouched tokens", d.unmapped ? d.unmapped.untouched : "–"], ["Partly mapped tokens", d.unmapped ? d.unmapped.partial : "–"],
+    ].map(([k, v], i) => `<div class="stat${i === 2 ? " key" : ""}"><b>${esc(v)}</b><span>${esc(k)}</span></div>`).join("");
+    $("dash-unmapped").textContent = sample ? "" : "Paste text into the EVA Analyzer or Cipher Builder to see unmapped counts here.";
+    $("dash-recent").innerHTML = d.recent.length
+      ? d.recent.map((r) => `<div>${esc(r.label)} <span class="pill muted">${esc(new Date(r.when).toLocaleString())}</span></div>`).join("")
+      : "Nothing saved yet.";
+  }
+
+  // ---- EVA analyzer
+  function renderAnalysis() {
+    const src = $("an-src").value;
+    const opts = { conventions: $("an-conv").checked, spaces: $("an-spaces").checked, punct: $("an-punct").checked };
+    const a = L.analyzeText(src, opts);
+    $("an-stats").innerHTML = [["Characters", a.characters], ["Words", a.words], ["Tokens", a.tokens], ["Unique characters", a.uniqueCharacters]]
+      .map(([k, v]) => `<div class="stat"><b>${esc(v)}</b><span>${esc(k)}</span></div>`).join("");
+    const table = (rows, h1, h2) => rows.length
+      ? `<table><tr><th>${esc(h1)}</th><th>Count</th></tr>${rows.map((r) => `<tr><td class="mono">${esc(r.text)}</td><td>${r.count}</td></tr>`).join("")}</table>`
+      : `<p class="note">None.</p>`;
+    $("an-chars").innerHTML = table(a.charFrequency, "Character");
+    $("an-words").innerHTML = table(a.wordFrequency, "Word");
+    $("an-rep").innerHTML = table(a.repeatedWords, "Word");
+    $("an-fl").innerHTML = `<table><tr><th>First</th><th>Count</th><th>Last</th><th>Count</th></tr>` +
+      Array.from({ length: Math.max(a.firstChar.length, a.lastChar.length, 1) }, (_, i) => {
+        const f = a.firstChar[i] || {}, l = a.lastChar[i] || {};
+        return `<tr><td class="mono">${esc(f.text || "")}</td><td>${f.count || ""}</td><td class="mono">${esc(l.text || "")}</td><td>${l.count || ""}</td></tr>`;
+      }).join("") + "</table>";
+    const aff = (obj) => Object.keys(obj).map((n) => `<h3 style="margin-top:8px">Length ${n}</h3>` + table(obj[n], "Affix")).join("");
+    $("an-pre").innerHTML = aff(a.prefixes);
+    $("an-suf").innerHTML = aff(a.suffixes);
+    $("an-norm").textContent = a.normalized;
+    renderSearch();
+    renderGrams();
+  }
+  function renderSearch() {
+    const q = $("an-q").value;
+    if (!q.trim()) { $("an-hits").textContent = "Type to search the transcription."; return; }
+    const hits = L.search($("an-src").value, q, { conventions: $("an-conv").checked, wholeWord: $("an-whole").checked });
+    $("an-hits").innerHTML = hits.length
+      ? `<div class="note">${hits.length} occurrence${hits.length === 1 ? "" : "s"}</div>` + hits.slice(0, 100).map((h) =>
+          `<div><span class="locus">${esc(h.locus || "line " + (h.line + 1))}</span> <span class="mono">${esc(h.word)}</span></div>`).join("")
+      : "No occurrences.";
+  }
+  function renderGrams() {
+    const n = Number($("an-n").value);
+    const g = L.ngrams($("an-src").value, n, { conventions: $("an-conv").checked });
+    $("an-grams").innerHTML = g.length
+      ? `<table><tr><th>Sequence</th><th>Count</th><th>Where</th></tr>${g.slice(0, 40).map((e) =>
+          `<tr><td class="mono">${esc(e.text)}</td><td>${e.count}</td><td class="locus">${esc(e.locations.slice(0, 6).map((l) => (l.locus || "line " + (l.line + 1)) + " " + l.word).join("; "))}</td></tr>`).join("")}</table>`
+      : `<p class="note">No sequence of this length repeats.</p>`;
+  }
+  ["an-src", "an-conv", "an-spaces", "an-punct"].forEach((id) => $(id).addEventListener("input", renderAnalysis));
+  $("an-src").addEventListener("change", () => { try { localStorage.setItem(SAMPLE_KEY, $("an-src").value); } catch (e) {} });
+  ["an-q", "an-whole"].forEach((id) => $(id).addEventListener("input", renderSearch));
+  $("an-n").addEventListener("change", renderGrams);
+
+  // ---- cipher builder
+  let editingRule = null;
+  function renderRules() {
+    const rows = state.rules;
+    $("rules-tbl").innerHTML = rows.length
+      ? `<table><tr><th>EVA</th><th>Meaning (hypothesis)</th><th>Kind</th><th>Category</th><th>Confidence</th><th>Folio</th><th></th></tr>` +
+        rows.map((r) => `<tr class="${editingRule === r.id ? "pick" : ""}"><td class="mono">${esc(r.source)}</td><td>${esc(r.meaning)}</td><td>${r.type === "word" ? "whole word" : "sequence"}</td><td>${esc(r.category)}</td><td>${esc(r.confidence)}</td><td>${esc(r.folio)}</td>
+          <td><div class="btns"><button class="ghost" type="button" data-edit="${esc(r.id)}">Edit</button><button class="danger" type="button" data-del="${esc(r.id)}">Delete</button></div></td></tr>`).join("") + "</table>"
+      : `<p class="note">No rules yet. Nothing is applied until you add one.</p>`;
+  }
+  function ruleFromForm() {
+    return {
+      type: $("r-type").value, source: $("r-source").value, meaning: $("r-meaning").value, category: $("r-cat").value,
+      confidence: $("r-conf").value, folio: $("r-folio").value, explanation: $("r-expl").value,
+      evidence: $("r-evid").value, notes: $("r-notes").value,
+    };
+  }
+  function clearRuleForm() {
+    editingRule = null; $("rule-heading").textContent = "New cipher rule";
+    for (const id of ["r-source", "r-meaning", "r-folio", "r-expl", "r-evid", "r-notes"]) $(id).value = "";
+    $("r-type").value = "sequence"; $("r-cat").value = "Unknown"; $("r-conf").value = "low";
+    $("rule-msg").textContent = ""; renderRules();
+  }
+  $("rule-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    try {
+      const prior = editingRule ? state.rules.find((r) => r.id === editingRule) : null;
+      const rec = L.cleanRule({ ...ruleFromForm(), id: editingRule || undefined, dateAdded: prior ? prior.dateAdded : now() });
+      state.rules = editingRule ? state.rules.map((r) => (r.id === editingRule ? rec : r)) : state.rules.concat([rec]);
+      const wasEdit = !!editingRule; save(); clearRuleForm(); $("rule-msg").textContent = wasEdit ? "Rule updated." : "Rule saved.";
+    } catch (err) { $("rule-msg").textContent = err.message; $("rule-msg").classList.add("err"); }
+  });
+  $("r-clear").addEventListener("click", clearRuleForm);
+  $("rules-tbl").addEventListener("click", (e) => {
+    const ed = e.target.dataset.edit, del = e.target.dataset.del;
+    if (ed) {
+      const r = state.rules.find((x) => x.id === ed); if (!r) return;
+      editingRule = r.id; $("rule-heading").textContent = "Editing rule " + r.source;
+      $("r-type").value = r.type; $("r-source").value = r.source; $("r-meaning").value = r.meaning; $("r-cat").value = r.category;
+      $("r-conf").value = r.confidence; $("r-folio").value = r.folio; $("r-expl").value = r.explanation; $("r-evid").value = r.evidence; $("r-notes").value = r.notes;
+      renderRules(); $("r-source").scrollIntoView({ behavior: "smooth", block: "center" });
+    } else if (del) {
+      const r = state.rules.find((x) => x.id === del); if (!r) return;
+      if (!confirm("Delete the rule for \"" + r.source + "\"? This cannot be undone.")) return;
+      state.rules = state.rules.filter((x) => x.id !== del); save();
+      if (editingRule === del) clearRuleForm(); else renderRules();
+      renderDash();
+    }
+  });
+  $("cb-src").addEventListener("change", () => { try { localStorage.setItem(SAMPLE_KEY, $("cb-src").value); } catch (e) {} });
+
+  function passage() { return $("cb-src").value.trim() ? $("cb-src").value : $("an-src").value; }
+  $("cb-a").addEventListener("click", () => {
+    const text = passage();
+    if (!text.trim()) { $("cb-msg").textContent = "Paste a passage first."; $("cb-out").innerHTML = ""; return; }
+    if (!state.rules.length) $("cb-msg").textContent = "No rules yet. Every token will show as unmapped until you add one.";
+    else $("cb-msg").textContent = "Showing only your rules. Pink marks anything they do not cover.";
+    const out = L.applyLiteral(text, state.rules, { priority: $("cb-prio").value, conventions: $("an-conv").checked });
+    const ruleOf = (id) => state.rules.find((r) => r.id === id);
+    const side = (line) => line.tokens.map((t) => `<span class="tok${t.pieces.some((p) => p.rule) ? " open" : ""}${t.unmapped ? " unmapped" : ""}"><span class="piece">${esc(t.token)}</span></span>`).join("");
+    $("cb-out").innerHTML = `<div class="sbs">
+        <div><h3>Original</h3>${out.map((l) => `<div class="locus">${esc(l.locus || "")}</div><div class="tokens">${side(l)}</div>`).join("")}</div>
+        <div><h3>Literal output (your rules)</h3>${out.map((l) => `<div class="locus">${esc(l.locus || "")}</div><div class="tokens">${l.tokens.map((t) =>
+          `<span class="tok${t.unmapped ? " unmapped" : ""}">${t.pieces.map((p) => p.rule
+            ? `<span class="piece rule">${esc(p.meaning)}</span><small class="locus">${esc(p.text)} · rule ${esc(ruleOf(p.rule) ? ruleOf(p.rule).source : p.rule)}</small>`
+            : `<span class="piece none">${esc(p.text)}</span><small>no rule</small>`).join("")}</span>`).join("")}</div>`).join("")}</div>
+      </div>`;
+  });
+  $("cb-b").addEventListener("click", () => {
+    const text = passage();
+    if (!text.trim()) { $("cb-msg").textContent = "Paste a passage first."; return; }
+    const p = L.patternExplore(text, { sizes: [2, 3, 4], conventions: $("an-conv").checked });
+    $("cb-msg").textContent = p.note;
+    $("cb-out").innerHTML = Object.keys(p.sizes).map((n) => `<h3>Length ${n}</h3>` + (p.sizes[n].length
+      ? `<table><tr><th>Sequence</th><th>Count</th><th>Where</th></tr>${p.sizes[n].map((e) =>
+          `<tr><td class="mono">${esc(e.text)}</td><td>${e.count}</td><td class="locus">${esc(e.locations.slice(0, 5).map((l) => (l.locus || "line " + (l.line + 1)) + " " + l.word).join("; "))}</td></tr>`).join("")}</table>`
+      : `<p class="note">None repeat at this length.</p>`)).join("");
+  });
+
+  // ---- folio explorer
+  const FIELDS = { "f-folio": "folio", "f-section": "section", "f-trans": "transcription", "f-ill": "illustration", "f-bot": "botany",
+    "f-fig": "figures", "f-ast": "astronomy", "f-int": "interpretation", "f-alt": "alternatives", "f-for": "evidenceFor",
+    "f-against": "evidenceAgainst", "f-src": "sources", "f-conf": "confidence", "f-status": "status", "f-notes": "notes" };
+  let editingFolio = null;
+  function fillFolio(f) {
+    editingFolio = f ? f.id : null;
+    $("folio-heading").textContent = f ? "Folio " + f.folio : "New folio record";
+    for (const [id, key] of Object.entries(FIELDS)) $(id).value = f ? f[key] : (key === "confidence" ? "low" : key === "status" ? "unreviewed" : "");
+    $("rel-card").hidden = !f;
+    renderRelated();
+    renderFolioTable();
+    $("folio-msg").textContent = "";
+  }
+  function folioFromForm() {
+    const o = {};
+    for (const [id, key] of Object.entries(FIELDS)) o[key] = $(id).value;
+    return o;
+  }
+  $("folio-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    try {
+      const prior = editingFolio ? state.folios.find((f) => f.id === editingFolio) : null;
+      const rec = L.cleanFolio({ ...folioFromForm(), id: editingFolio || undefined, related: prior ? prior.related : [],
+        dateAdded: prior ? prior.dateAdded : now(), dateEdited: now() });
+      state.folios = editingFolio ? state.folios.map((f) => (f.id === editingFolio ? rec : f)) : state.folios.concat([rec]);
+      editingFolio = rec.id; save();
+      fillFolio(rec); $("folio-msg").textContent = "Folio saved.";
+    } catch (err) { $("folio-msg").textContent = err.message; $("folio-msg").classList.add("err"); }
+  });
+  $("f-new").addEventListener("click", () => fillFolio(null));
+  $("f-dup").addEventListener("click", () => {
+    const f = state.folios.find((x) => x.id === editingFolio); if (!f) { $("folio-msg").textContent = "Save this record before duplicating it."; return; }
+    const copy = L.cleanFolio({ ...f, id: L.newId("folio"), dateAdded: now(), dateEdited: now(), related: [] });
+    state.folios.push(copy); save(); fillFolio(copy); $("folio-msg").textContent = "Duplicated. Edit the copy as needed.";
+  });
+  $("f-del").addEventListener("click", () => {
+    const f = state.folios.find((x) => x.id === editingFolio); if (!f) { fillFolio(null); return; }
+    if (!confirm("Delete the record for " + f.folio + "? This cannot be undone.")) return;
+    state.folios = state.folios.filter((x) => x.id !== f.id); save(); fillFolio(null); renderDash();
+  });
+  function renderRelated() {
+    const f = state.folios.find((x) => x.id === editingFolio);
+    $("rel-list").innerHTML = f && f.related.length ? f.related.map((r, i) =>
+      `<div>${esc(f.folio)} ↔ ${esc(r.folio)}: ${esc(r.reason)} <button class="del" type="button" data-rel="${i}">Remove</button></div>`).join("") : "No links yet.";
+  }
+  $("rel-add").addEventListener("click", () => {
+    const f = state.folios.find((x) => x.id === editingFolio); if (!f) return;
+    const other = $("rel-folio").value.trim(), reason = $("rel-reason").value.trim();
+    if (!other || !reason) { $("folio-msg").textContent = "A link needs another folio and a reason."; return; }
+    f.related = f.related.concat([{ folio: other, reason }]); f.dateEdited = now(); save();
+    $("rel-folio").value = ""; $("rel-reason").value = ""; renderRelated();
+  });
+  $("rel-list").addEventListener("click", (e) => {
+    const i = e.target.dataset.rel; if (i === undefined) return;
+    const f = state.folios.find((x) => x.id === editingFolio); if (!f) return;
+    f.related = f.related.filter((_, k) => String(k) !== i); f.dateEdited = now(); save(); renderRelated();
+  });
+  function renderFolioTable() {
+    const q = $("fs-q").value.trim().toLowerCase();
+    const rows = state.folios.filter((f) => !q || JSON.stringify(f).toLowerCase().includes(q));
+    $("folio-tbl").innerHTML = rows.length
+      ? `<table><tr><th>Folio</th><th>Status</th><th>Confidence</th><th>Interpretation</th></tr>${rows.map((f) =>
+          `<tr class="${f.id === editingFolio ? "pick" : ""}"><td><button class="ghost" type="button" data-open="${esc(f.id)}">${esc(f.folio)}</button></td><td><span class="pill muted">${esc(f.status)}</span></td><td>${esc(f.confidence)}</td><td class="note">${esc((f.interpretation || "").slice(0, 80))}</td></tr>`).join("")}</table>`
+      : `<p class="note">${state.folios.length ? "No records match." : "No folio records yet."}</p>`;
+  }
+  $("fs-q").addEventListener("input", renderFolioTable);
+  $("folio-tbl").addEventListener("click", (e) => {
+    const id = e.target.dataset.open; if (!id) return;
+    fillFolio(state.folios.find((f) => f.id === id));
+    $("v-folios").scrollIntoView({ behavior: "smooth" });
+  });
+
+  // ---- data
+  function download(name, text, type) {
+    const blob = new Blob([text], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  const stamp = () => new Date().toISOString().slice(0, 10);
+  $("x-json").addEventListener("click", () => { download("voynich-lab-" + stamp() + ".json", L.exportBackup(state), "application/json"); $("x-msg").textContent = "Backup downloaded."; });
+  $("x-folio-csv").addEventListener("click", () => {
+    download("voynich-folios-" + stamp() + ".csv", L.toCSV(state.folios, L.FOLIO_COLUMNS), "text/csv");
+    $("x-msg").textContent = "Folio CSV downloaded.";
+  });
+  $("x-rule-csv").addEventListener("click", () => {
+    download("voynich-rules-" + stamp() + ".csv", L.toCSV(state.rules, L.RULE_COLUMNS), "text/csv");
+    $("x-msg").textContent = "Rule CSV downloaded.";
+  });
+  let pendingImport = null;
+  $("i-file").addEventListener("change", async () => {
+    pendingImport = null; $("i-errors").innerHTML = "";
+    const f = $("i-file").files[0]; if (!f) return;
+    if (f.size > 20 * 1024 * 1024) { $("i-msg").textContent = "That file is larger than 20 MB, which is too big for a research backup."; return; }
+    try {
+      const obj = JSON.parse(await f.text());
+      const v = L.validateBackup(obj);
+      if (!v.ok) { $("i-msg").textContent = "This file was not imported. Fix the problems below and try again."; $("i-msg").classList.add("err"); $("i-errors").innerHTML = v.errors.map((x) => `<li>${esc(x)}</li>`).join(""); return; }
+      pendingImport = v.data; $("i-msg").classList.remove("err");
+      $("i-msg").textContent = `Ready: ${v.data.folios.length} folio records and ${v.data.rules.length} rules. Choose how to import.`;
+    } catch (err) { $("i-msg").textContent = "This file is not valid JSON, so nothing was imported."; $("i-msg").classList.add("err"); }
+  });
+  $("i-merge").addEventListener("click", () => {
+    if (!pendingImport) { $("i-msg").textContent = "Choose a backup file first."; return; }
+    const m = L.mergeNew(state, pendingImport);
+    state = m.data; save(); pendingImport = null; $("i-file").value = "";
+    $("i-msg").textContent = `Added ${m.added.folios} folio records and ${m.added.rules} rules. Kept ${m.skipped.folios + m.skipped.rules} that already existed.`;
+    renderRules(); renderFolioTable(); renderDash();
+  });
+  $("i-replace").addEventListener("click", () => {
+    if (!pendingImport) { $("i-msg").textContent = "Choose a backup file first."; return; }
+    if (!confirm("Replace everything in the lab with this file? Current records will be lost unless you have a backup.")) return;
+    state = pendingImport; save(); pendingImport = null; $("i-file").value = "";
+    $("i-msg").textContent = "Lab replaced from the backup file.";
+    clearRuleForm(); fillFolio(null); renderDash();
+  });
+  $("clear").addEventListener("click", () => {
+    if (!confirm("Delete every folio record and rule in this browser? Download a backup first if you want to keep them.")) return;
+    state = { folios: [], rules: [] }; save(); clearRuleForm(); fillFolio(null); renderDash();
+    $("x-msg").textContent = "All research data cleared.";
+  });
+
+  // ---- start
+  setStoreNote();
+  try { const s = localStorage.getItem(SAMPLE_KEY); if (s) $("an-src").value = s; } catch (e) {}
+  if (!$("an-src").value) $("an-src").value = "# Illustrative only, not a manuscript transcription. Paste your own EVA here.\ndaiin.chedy.qokedy shedy.daiin";
+  renderRules(); renderFolioTable(); renderAnalysis(); renderDash();
+})();
+</script>
+</body>
+</html>
