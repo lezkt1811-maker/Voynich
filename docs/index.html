@@ -1,0 +1,434 @@
+<title>Voynich Pool Reader</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,500;0,700;1,500&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a two-column workbench (inputs | reading) over a reference strip of the tables and the cipher editor. */
+:root {
+  --bg: #eef3f0; --panel: #f9fbfa; --ink: #1d2a26; --muted: #5b6b66;
+  --line: #c9d6d1; --pool: #2c6a58; --pool-soft: #d6e8e1; --warn: #8a4b12; --warn-soft: #f6e7d6;
+  --display: "Alegreya", Georgia, serif; --body: "IBM Plex Sans", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121a18; --panel: #1a2421; --ink: #dfe9e5; --muted: #93a6a0;
+  --line: #2e3d39; --pool: #7cc4ad; --pool-soft: #1f3a32; --warn: #f0b27a; --warn-soft: #3a2a1b; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121a18; --panel: #1a2421; --ink: #dfe9e5; --muted: #93a6a0;
+  --line: #2e3d39; --pool: #7cc4ad; --pool-soft: #1f3a32; --warn: #f0b27a; --warn-soft: #3a2a1b; color-scheme: dark }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
+.wrap { max-width: 1100px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 48px; display: grid; gap: 28px; }
+h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; }
+h1 { font-size: 2.1rem; line-height: 1.1; }
+h2 { font-size: 1.3rem; }
+.lede { color: var(--muted); max-width: 65ch; margin: 6px 0 0; }
+.banner { background: var(--warn-soft); color: var(--warn); border-radius: 6px; padding: 10px 14px; font-size: .9rem; max-width: 80ch; }
+.bench { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 24px; }
+@media (max-width: 760px) { .bench { grid-template-columns: minmax(0, 1fr); } }
+.col { display: grid; gap: 14px; align-content: start; min-width: 0; }
+label { display: grid; gap: 4px; font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+input, select, textarea { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 5px; padding: 7px 9px; text-transform: none; letter-spacing: 0; }
+textarea { font-family: var(--mono); font-size: .88rem; min-height: 9rem; resize: vertical; }
+:focus-visible { outline: 2px solid var(--pool); outline-offset: 2px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+.row > label { flex: 1 1 120px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: inherit; font-size: .85rem; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--pool); border-color: var(--pool); color: var(--bg); }
+button.act { font: inherit; font-weight: 600; background: var(--pool); color: var(--bg); border: 0; border-radius: 5px; padding: 8px 14px; cursor: pointer; }
+button.ghost { font: inherit; background: none; color: var(--pool); border: 1px solid var(--pool); border-radius: 5px; padding: 6px 12px; cursor: pointer; }
+.reading { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.reading header { display: grid; gap: 2px; }
+.eyebrow { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.notes { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.notes li { background: var(--warn-soft); color: var(--warn); border-radius: 5px; padding: 6px 10px; font-size: .86rem; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; }
+.fact { background: var(--pool-soft); border-radius: 5px; padding: 4px 10px; font-size: .88rem; }
+.line { display: grid; gap: 4px; border-top: 1px solid var(--line); padding-top: 10px; }
+.locus { font-family: var(--mono); font-size: .75rem; color: var(--muted); }
+.words { display: flex; flex-wrap: wrap; gap: 10px 14px; }
+.w { display: grid; gap: 1px; }
+.w .eva { font-family: var(--mono); font-weight: 500; }
+.w .g { font-size: .8rem; color: var(--muted); }
+.w .g.cat { color: var(--pool); font-weight: 600; }
+.w .g.unk { opacity: .6; }
+.ref { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 24px; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .88rem; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+.src { color: var(--muted); font-size: .78rem; }
+#cipher { min-height: 14rem; }
+.msg { font-size: .85rem; color: var(--muted); min-height: 1.2em; }
+.stats { display: flex; flex-wrap: wrap; gap: 10px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; display: grid; gap: 2px; min-width: 9rem; flex: 1 1 9rem; }
+.stat b { font-family: var(--display); font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.stat.key { border-color: var(--pool); }
+.stat span { font-size: .8rem; color: var(--muted); }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 14px; }
+.mono { font-family: var(--mono); font-size: .85rem; overflow-wrap: anywhere; }
+.check { display: flex; gap: 6px; align-items: center; text-transform: none; letter-spacing: 0; font-size: .9rem; color: var(--ink); }
+.del { font: inherit; font-size: .8rem; background: none; border: 0; color: var(--muted); cursor: pointer; text-decoration: underline; }
+.entry { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+@media (max-width: 640px) { .entry { grid-template-columns: minmax(0, 1fr); } }
+.entry img { align-self: start; width: 100%; border-radius: 4px; border: 1px solid var(--line); }
+.entry .body { display: grid; gap: 10px; min-width: 0; }
+.entry h3 { font-family: var(--display); font-size: 1.15rem; margin: 0; }
+.entry dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: .9rem; }
+.entry dt { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; padding-top: 2px; }
+.entry dd { margin: 0; }
+.entry .eyebrow { display: block; margin-bottom: 2px; }
+.entry ul { margin: 0; padding-left: 1.1rem; display: grid; gap: 4px; font-size: .9rem; }
+.thinking { color: var(--muted); font-style: italic; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Voynich Pool Reader</h1>
+    <p class="lede">Apply your EVA cipher, the hair-colour humors, and the zodiac seasons to a folio and see the reading line by line. The bathing-pool pages (f75r to f84v) are the focus.</p>
+  </header>
+  <div class="banner">This is a personal, speculative framework. The Voynich Manuscript has never been deciphered, and no reading here is a translation or medical advice.</div>
+
+  <section class="bench">
+    <div class="col">
+      <div class="row">
+        <label for="folio">Folio <input id="folio" value="f78r"></label>
+        <label for="zodiac">Zodiac sign <select id="zodiac"><option value="">none</option></select></label>
+      </div>
+      <div>
+        <div class="eyebrow" style="margin-bottom:6px">Hair colours of the figures</div>
+        <div class="chips" id="hair"></div>
+      </div>
+      <label for="eva">EVA transcription (plain or IVTFF)
+        <textarea id="eva" spellcheck="false"></textarea>
+      </label>
+      <div class="row"><button class="act" id="go">Read folio</button></div>
+    </div>
+    <article class="reading" id="out" aria-live="polite"></article>
+  </section>
+
+  <section class="ref">
+    <div class="col">
+      <h2>Hair colour and humor</h2>
+      <div class="tbl"><table id="t-hair"></table></div>
+    </div>
+    <div class="col">
+      <h2>Zodiac and season</h2>
+      <div class="tbl"><table id="t-zod"></table></div>
+    </div>
+  </section>
+
+
+
+  <section class="col" id="investigation">
+    <h2>Investigation log</h2>
+    <p class="lede">Upload a photo of a manuscript page. Claude describes what is visible (figures, hair, plants, pools, zodiac, any legible EVA), then applies your framework, labelled as interpretation. Every page and its analysis is saved here, so the investigation builds up over time.</p>
+    <form class="row" id="up-form">
+      <label for="up-folio">Folio, if known <input id="up-folio" placeholder="e.g. f78r"></label>
+      <label for="up-note" style="flex: 2 1 220px">Your note <input id="up-note" placeholder="what you want looked at"></label>
+      <label for="up-file">Photo <input type="file" id="up-file" accept="image/*" required></label>
+      <button class="act" type="submit" id="up-go">Upload and analyse</button>
+    </form>
+    <div class="msg" id="up-msg">Connecting to the saved log...</div>
+    <div class="col" id="entries"></div>
+  </section>
+
+  <section class="col" id="heldout">
+    <h2>Held-out folio test</h2>
+    <p class="lede">Build your cipher on one folio, then run the same fixed rules on a folio you did not use to build it. If the rules only read the page they were built from, the score on new words drops. Note the cipher code: a different code means the rules changed between runs.</p>
+    <div class="pair">
+      <label for="dev">Development folio EVA (used to build the cipher)<textarea id="dev" spellcheck="false"></textarea></label>
+      <label for="held">Held-out folio EVA (not used to build it)<textarea id="held" spellcheck="false"></textarea></label>
+    </div>
+    <div class="row"><button class="act" id="run-test">Run the test</button></div>
+    <div id="test-out" class="col"></div>
+  </section>
+
+  <section class="col" id="hairlog">
+    <h2>Hair-colour log</h2>
+    <p class="lede">Record each figure's hair colour, and what the surrounding page suggests on its own (a symbol, a plant, the sign) if anything does. Tick "noted blind" when you wrote down the context before checking what the rule predicts. Blind agreements are the ones that count most.</p>
+    <form class="row" id="hair-form">
+      <label for="h-folio">Folio <input id="h-folio" value="f78r" required></label>
+      <label for="h-fig">Figure <input id="h-fig" placeholder="e.g. 3rd from left"></label>
+      <label for="h-hair">Hair <select id="h-hair"></select></label>
+      <label for="h-ctx">Context suggests <select id="h-ctx"><option value="">nothing clear</option><option>melancholic</option><option>choleric</option><option>phlegmatic</option><option>sanguine</option></select></label>
+      <label class="check" for="h-blind"><input type="checkbox" id="h-blind"> noted blind</label>
+      <button class="act" type="submit">Add</button>
+    </form>
+    <div class="msg" id="h-msg"></div>
+    <div class="tbl"><table id="t-cons"></table></div>
+    <div class="tbl"><table id="t-log"></table></div>
+  </section>
+
+  <section class="col">
+    <h2>Your cipher</h2>
+    <p class="lede">Paste or edit your EVA mappings as JSON: <code>evaWords</code>, <code>evaPrefixes</code>, <code>evaSuffixes</code>, plus <code>hairHumors</code> if you change those rules. A word entry can carry a <code>category</code>: fertility, contraception, fibroids, cysts or cramps. The starting entries are format examples, not your cipher.</p>
+    <textarea id="cipher" spellcheck="false"></textarea>
+    <div class="row">
+      <button class="act" id="apply">Apply cipher</button>
+      <button class="ghost" id="copy">Copy JSON</button>
+      <button class="ghost" id="reset">Restore examples</button>
+    </div>
+    <div class="msg" id="msg"></div>
+  </section>
+</div>
+
+<script src="data.js"></script>
+<script src="reader.js"></script>
+<script>
+(function () {
+  const BASE = window.VOYNICH_DATA, R = window.VoynichReader;
+  const KEYS = ["evaWords", "evaPrefixes", "evaSuffixes", "hairHumors", "remedyCategories"];
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  let data = { ...BASE };
+  const picked = new Set(["black", "red"]);
+
+  function cipherOf(d) { const o = {}; for (const k of KEYS) o[k] = d[k]; return o; }
+  function store(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+  function applyCipher(json, quiet) {
+    try {
+      const m = JSON.parse(json);
+      data = { ...BASE };
+      for (const k of KEYS) if (m[k]) data[k] = m[k];
+      store("cipher", json);
+      if (!quiet) $("msg").textContent = "Cipher applied and saved in this browser.";
+      renderTables(); renderHair(); render(); if (typeof renderLog === "function") { renderLog(); runTest(); }
+    } catch (e) {
+      $("msg").textContent = "That JSON did not parse: " + e.message + ". Fix it and apply again.";
+    }
+  }
+
+  function renderHair() {
+    $("hair").innerHTML = Object.keys(data.hairHumors).map((h) =>
+      `<button class="chip" type="button" data-h="${esc(h)}" aria-pressed="${picked.has(h)}">${esc(h)}</button>`).join("");
+  }
+  function renderTables() {
+    $("t-hair").innerHTML = "<tr><th>Hair</th><th>Humor</th><th>Qualities</th><th>Set by</th></tr>" +
+      Object.entries(data.hairHumors).map(([h, v]) =>
+        `<tr><td>${esc(h)}</td><td>${esc(v.humor)}</td><td>${esc((v.qualities || []).join(", "))}</td><td class="src">${esc(v.source || "")}</td></tr>`).join("");
+    $("t-zod").innerHTML = "<tr><th>Sign</th><th>Dates</th><th>Season</th><th>Folios</th></tr>" +
+      Object.entries(data.zodiac).map(([z, v]) =>
+        `<tr><td>${esc(z)}</td><td>${esc(v.dates)}</td><td>${esc(v.season)}</td><td class="src">${esc(v.folios.join(", ") || "missing")}</td></tr>`).join("");
+  }
+
+  function render() {
+    const r = R.read($("eva").value, { folio: $("folio").value, zodiac: $("zodiac").value, hair: [...picked] }, data);
+    const facts = [];
+    if (r.zodiac) facts.push(`${esc(r.zodiac.sign)} · ${esc(r.zodiac.dates)} · ${esc(r.zodiac.season)}`);
+    for (const h of r.humors) facts.push(`${esc(h.hair)} hair · ${esc(h.humor)} (${esc(h.qualities.join(", "))})`);
+    for (const c of r.remedyCategories) facts.push(`theme · ${esc(c.label)}`);
+    $("out").innerHTML = `
+      <header><span class="eyebrow">Speculative reading${r.section ? " · " + esc(r.section) : ""}</span>
+        <h2>${esc(r.folio || "Untitled folio")}</h2></header>
+      <ul class="notes">${r.notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>
+      ${facts.length ? `<div class="facts">${facts.map((f) => `<span class="fact">${f}</span>`).join("")}</div>` : ""}
+      ${r.lines.map((l) => `<div class="line">${l.locus ? `<span class="locus">${esc(l.locus)}</span>` : ""}
+        <div class="words">${l.words.map((w) => `<span class="w"><span class="eva">${esc(w.word)}</span>
+          <span class="g ${w.parts.some((p) => p.category) ? "cat" : ""} ${w.parts.every((p) => p.gloss === "?") ? "unk" : ""}">${esc(w.parts.map((p) => p.gloss).join(" + "))}</span></span>`).join("")}</div></div>`).join("")}
+      <div class="src">${r.coverage.known} of ${r.coverage.total} words mapped by the cipher</div>`;
+  }
+
+  $("zodiac").innerHTML += Object.keys(BASE.zodiac).map((z) => `<option value="${z}">${z}</option>`).join("");
+  $("zodiac").value = "pisces";
+  $("eva").value = "# Example input, not a real transcription. Paste your folio's EVA here.\n<f78r.1,@P0> qokedy.shedy.daiin.okal\n<f78r.2,+P0> shedy.qokaiin.chedy";
+  $("hair").addEventListener("click", (e) => {
+    const h = e.target.dataset && e.target.dataset.h; if (!h) return;
+    picked.has(h) ? picked.delete(h) : picked.add(h); renderHair(); render();
+  });
+  for (const id of ["folio", "zodiac", "eva"]) $(id).addEventListener("input", render);
+  $("go").addEventListener("click", render);
+  $("apply").addEventListener("click", () => applyCipher($("cipher").value));
+  $("reset").addEventListener("click", () => {
+    store("cipher", null); $("cipher").value = JSON.stringify(cipherOf(BASE), null, 2);
+    applyCipher($("cipher").value, true); $("msg").textContent = "Example cipher restored.";
+  });
+  $("copy").addEventListener("click", () => {
+    const t = $("cipher");
+    navigator.clipboard.writeText(t.value).then(() => { $("msg").textContent = "Copied. Save it somewhere safe; this page only remembers it in this browser."; },
+      () => { t.select(); $("msg").textContent = "Copy was blocked here. The JSON is selected; press Ctrl+C or Cmd+C."; });
+  });
+
+
+  // Held-out test
+  $("dev").value = "# Example only. Paste the folio you built the cipher on.\nqokedy.shedy.daiin.chedy";
+  $("held").value = "# Example only. Paste a folio you did not use.\nshedy.qokaiin.okal.daiin";
+  function runTest() {
+    const r = R.heldOutTest($("dev").value, $("held").value, data);
+    $("test-out").innerHTML = `
+      <div class="stats">
+        <div class="stat"><span>Development folio</span><b>${r.dev.percent}%</b><span>${r.dev.known} of ${r.dev.total} words read</span></div>
+        <div class="stat"><span>Held-out folio</span><b>${r.test.percent}%</b><span>${r.test.known} of ${r.test.total} words read</span></div>
+        <div class="stat key"><span>Words new to the held-out folio</span><b>${r.newWords.percent}%</b><span>${r.newWords.known} of ${r.newWords.total} read</span></div>
+        <div class="stat"><span>Cipher code</span><b class="mono">${esc(r.fingerprint)}</b><span>same code means same rules</span></div>
+      </div>
+      ${r.newWords.unread.length ? `<div><span class="eyebrow">Unread new words</span><div class="mono">${esc(r.newWords.unread.join(" "))}</div></div>` : ""}
+      <ul class="notes">${r.notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>`;
+  }
+  $("run-test").addEventListener("click", runTest);
+  runTest();
+
+  // Hair-colour log: kept in the page's shared store when available,
+  // otherwise only in this browser.
+  let log = [], db = null, logCol = null;
+  function renderLog() {
+    $("h-hair").innerHTML = Object.keys(data.hairHumors).map((h) => `<option>${esc(h)}</option>`).join("");
+    const rows = R.hairConsistency(log, data);
+    $("t-cons").innerHTML = rows.length
+      ? "<tr><th>Hair</th><th>Rule says</th><th>Seen</th><th>Context agrees</th><th>Blind agrees</th><th>Folios</th></tr>" +
+        rows.map((r) => `<tr><td>${esc(r.hair)}</td><td>${esc(r.predicted)}</td><td>${r.seen}</td><td>${r.matches} of ${r.withContext}</td><td>${r.blindMatches} of ${r.blindWithContext}</td><td class="src">${esc(r.folios.join(", "))}</td></tr>`).join("")
+      : "<tr><td class=\"src\">No figures logged yet. Add the first one above.</td></tr>";
+    $("t-log").innerHTML = log.length
+      ? "<tr><th>Folio</th><th>Figure</th><th>Hair</th><th>Context</th><th>Blind</th><th></th></tr>" +
+        log.map((o) => `<tr><td>${esc(o.folio)}</td><td>${esc(o.figure || "")}</td><td>${esc(o.hair)}</td><td>${esc(o.contextHumor || "nothing clear")}</td><td>${o.blind ? "yes" : "no"}</td><td><button class="del" type="button" data-id="${esc(o.id)}">Remove</button></td></tr>`).join("")
+      : "";
+  }
+  function saveLocal() { store("hairLog", JSON.stringify(log)); }
+  try { log = JSON.parse(load("hairLog") || "[]"); } catch (e) { log = []; }
+  $("h-msg").textContent = "Saving to this browser only until the shared log connects.";
+  renderLog();
+  if (window.claude && window.claude.use) {
+    window.claude.use("db").then((d) => {
+      if (!d) { $("h-msg").textContent = "The shared log is not available here, so entries stay in this browser only."; return; }
+      db = d; logCol = db.collection("hairLog");
+      logCol.orderBy("createdAt").onSnapshot((snap) => {
+        log = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        $("h-msg").textContent = "Entries are saved to the page's shared log.";
+        renderLog();
+      }, (e) => { $("h-msg").textContent = "The shared log stopped updating (" + e.code + "). Reload the page to reconnect."; });
+    });
+  }
+  $("hair-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const o = { folio: $("h-folio").value.trim(), figure: $("h-fig").value.trim(), hair: $("h-hair").value,
+      contextHumor: $("h-ctx").value, blind: $("h-blind").checked, createdAt: Date.now() };
+    if (logCol) logCol.add(o).catch((err) => { $("h-msg").textContent = "Not saved: " + err.message; });
+    else { log.push({ id: String(o.createdAt), ...o }); saveLocal(); renderLog(); }
+    $("h-fig").value = ""; $("h-blind").checked = false;
+  });
+  $("t-log").addEventListener("click", (e) => {
+    const id = e.target.dataset && e.target.dataset.id; if (!id) return;
+    if (logCol) logCol.doc(id).delete().catch((err) => { $("h-msg").textContent = "Not removed: " + err.message; });
+    else { log = log.filter((o) => o.id !== id); saveLocal(); renderLog(); }
+  });
+
+
+  // Investigation log: photo stored as an asset, analysis from Claude, both
+  // indexed in the "investigation" collection.
+  let assets = null, sampler = null, invCol = null, entries = [], confirming = null;
+  const ERR = { not_granted: "Claude wasn't allowed to look at images on this page. Allow it from the page's permissions to analyse photos.",
+    rate_limited: "Too many requests just now. Wait a minute, then press Analyse again.",
+    image_rejected: "That image couldn't be read. Try a JPEG or PNG under the size limit.",
+    invalid_json: "The analysis came back in an unexpected shape. Press Analyse again.",
+    refused: "Claude declined to analyse this image." };
+  const errText = (e) => ERR[e && e.code] || ("Something went wrong (" + ((e && (e.code || e.message)) || "unknown") + "). Try again.");
+  function li(items) { return items.length ? "<ul>" + items.join("") + "</ul>" : "<span class=\"src\">none noted</span>"; }
+  function renderEntries() {
+    if (!entries.length) { $("entries").innerHTML = "<p class=\"src\">No pages yet. Upload the first photo above, for example a bathing page such as f78r.</p>"; return; }
+    $("entries").innerHTML = entries.map((en) => {
+      const a = en.analysis ? R.normalizeAnalysis(en.analysis) : null;
+      const body = en.status === "analysing" ? "<p class=\"thinking\">Analysing the page. This can take up to a minute.</p>"
+        : en.status === "failed" ? `<p class="msg">${esc(en.error || "The analysis failed.")}</p>`
+        : a ? `
+          <p>${esc(a.summary || "")}</p>
+          <dl>
+            <dt>Section</dt><dd>${esc(a.section || "unknown")}</dd>
+            <dt>Layout</dt><dd>${esc(a.layout || "")}</dd>
+            <dt>Water</dt><dd>${esc(a.water || "none")}</dd>
+            <dt>Zodiac</dt><dd>${esc(a.zodiac.sign || "none")}${a.zodiac.evidence ? " · " + esc(a.zodiac.evidence) : ""}${a.zodiac.seasonUnderFramework ? " · framework season: " + esc(a.zodiac.seasonUnderFramework) : ""}</dd>
+            <dt>Visible text</dt><dd>${a.visibleText.eva ? `<span class="mono">${esc(a.visibleText.eva)}</span> · ` : ""}${esc(a.visibleText.notes || "")}</dd>
+            <dt>Colours</dt><dd>${esc(a.colours.join(", ") || "not noted")}</dd>
+            <dt>Confidence</dt><dd>${esc(a.confidence || "")}</dd>
+          </dl>
+          <div><span class="eyebrow">Figures</span>${li(a.figures.map((f) => `<li><b>${esc(f.position || "figure")}</b>: ${esc(f.hairColour || "?")} hair${f.humorUnderFramework ? " → " + esc(f.humorUnderFramework) + " (framework)" : ""}. ${esc(f.pose || "")} ${esc(f.details || "")}</li>`))}</div>
+          <div><span class="eyebrow">Plants</span>${li(a.plants.map((p) => `<li>${esc(p.description || "")}${p.themeUnderFramework && p.themeUnderFramework !== "none" ? ` · <b>framework theme: ${esc(p.themeUnderFramework)}</b>` : ""} ${esc(p.reasoning || "")}</li>`))}</div>
+          <div><span class="eyebrow">Next questions</span>${li(a.questions.map((q) => `<li>${esc(q)}</li>`))}</div>
+          <p class="src">Speculative. The manuscript is undeciphered; framework readings are interpretation, and nothing here is medical advice.</p>` : "";
+      const confirm = confirming === en.id
+        ? `<span class="src">Delete this page and its photo for good?</span> <button class="ghost" data-act="del-yes" data-id="${esc(en.id)}">Delete</button> <button class="del" data-act="del-no">Keep</button>`
+        : `<button class="del" data-act="del" data-id="${esc(en.id)}">Delete</button>`;
+      return `<article class="entry">
+        <img src="/_blob/${esc(en.imageId)}" alt="Photo of ${esc(en.folio || "a manuscript page")}" loading="lazy">
+        <div class="body">
+          <span class="eyebrow">${esc(new Date(en.createdAt).toLocaleString())}</span>
+          <h3>${esc(en.folio || "Unnumbered page")}</h3>
+          ${en.note ? `<p class="src">Your note: ${esc(en.note)}</p>` : ""}
+          ${body}
+          <div class="row">
+            ${sampler ? `<button class="ghost" data-act="analyse" data-id="${esc(en.id)}">${a ? "Analyse again" : "Analyse"}</button>` : ""}
+            ${a && a.figures.some((f) => data.hairHumors[(f.hairColour || "").toLowerCase()]) ? `<button class="ghost" data-act="tolog" data-id="${esc(en.id)}">Add figures to hair log</button>` : ""}
+            ${a && a.visibleText.eva ? `<button class="ghost" data-act="toreader" data-id="${esc(en.id)}">Read visible EVA</button>` : ""}
+            ${confirm}
+          </div>
+        </div></article>`;
+    }).join("");
+  }
+  async function analyse(en, file) {
+    const ref = invCol.doc(en.id);
+    await ref.update({ status: "analysing", error: null });
+    try {
+      const blob = file || await (await fetch("/_blob/" + en.imageId)).blob();
+      const result = await sampler.json(R.analysisPrompt(data, en.folio, en.note), { images: [blob], modelTier: "complex", cache: false });
+      await ref.update({ status: "done", analysis: R.normalizeAnalysis(result), analysedAt: Date.now() });
+    } catch (e) {
+      await ref.update({ status: "failed", error: errText(e) }).catch(() => {});
+    }
+  }
+  $("up-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const file = $("up-file").files[0];
+    if (!file || !assets || !invCol) return;
+    $("up-go").disabled = true; $("up-msg").textContent = "Uploading the photo...";
+    try {
+      const up = await assets.upload(file);
+      const en = { folio: $("up-folio").value.trim(), note: $("up-note").value.trim(), imageId: up.id, createdAt: Date.now(), status: sampler ? "analysing" : "uploaded" };
+      const ref = await invCol.add(en);
+      $("up-form").reset(); $("up-msg").textContent = sampler ? "Saved. Analysing now." : "Saved. Analysis isn't available in this view.";
+      if (sampler) analyse({ id: ref.id, ...en }, file);
+    } catch (err) {
+      $("up-msg").textContent = "The photo wasn't saved: " + (err.message || err.code) + ".";
+    } finally { $("up-go").disabled = false; }
+  });
+  $("entries").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    const en = entries.find((x) => x.id === b.dataset.id);
+    const act = b.dataset.act;
+    if (act === "del") { confirming = en.id; renderEntries(); }
+    else if (act === "del-no") { confirming = null; renderEntries(); }
+    else if (act === "del-yes") {
+      confirming = null;
+      invCol.doc(en.id).delete().then(() => assets && assets.delete(en.imageId)).catch((err) => { $("up-msg").textContent = "Not deleted: " + err.message; });
+    } else if (act === "analyse") analyse(en);
+    else if (act === "tolog") {
+      const a = R.normalizeAnalysis(en.analysis);
+      const figs = a.figures.filter((f) => data.hairHumors[(f.hairColour || "").toLowerCase()]);
+      for (const f of figs) {
+        const o = { folio: en.folio || "unknown", figure: f.position || "", hair: f.hairColour.toLowerCase(), contextHumor: "", blind: false, createdAt: Date.now() };
+        if (logCol) logCol.add(o); else { log.push({ id: String(Math.random()), ...o }); saveLocal(); renderLog(); }
+      }
+      $("up-msg").textContent = `Added ${figs.length} figure${figs.length === 1 ? "" : "s"} to the hair-colour log. Fill in what the context suggests there.`;
+    } else if (act === "toreader") {
+      $("folio").value = en.folio || ""; $("eva").value = R.normalizeAnalysis(en.analysis).visibleText.eva; render();
+      $("eva").scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  });
+  if (window.claude && window.claude.use) {
+    Promise.all([window.claude.use("db"), window.claude.use("assets"), window.claude.use("sample")]).then(async ([d, as, sm]) => {
+      if (!d) { $("investigation").hidden = true; return; }
+      assets = as;
+      if (sm) { const lim = await sm.limits().catch(() => null); if (lim && lim.images) { sampler = sm; $("up-file").accept = lim.images.mediaTypes.join(","); } }
+      if (!assets) $("up-form").hidden = true;
+      $("up-msg").textContent = !assets ? "You can read the log here, but only editors of this page can add photos."
+        : !sampler ? "Photos will be saved, but analysis isn't available in this view." : "";
+      invCol = d.collection("investigation");
+      invCol.orderBy("createdAt", "desc").onSnapshot((snap) => {
+        entries = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        renderEntries();
+      }, (e) => { $("up-msg").textContent = "The log stopped updating (" + e.code + "). Reload the page to reconnect."; });
+    });
+  } else { $("investigation").hidden = true; }
+
+  const saved = load("cipher");
+  $("cipher").value = saved || JSON.stringify(cipherOf(BASE), null, 2);
+  applyCipher($("cipher").value, true);
+})();
+</script>
