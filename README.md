@@ -43,6 +43,12 @@ interpretation. Figures can be sent to the hair-colour log and legible EVA to
 the reader. This needs the claude.ai page; a plain local copy of
 `docs/index.html` hides the section.
 
+## Theories and evidence
+
+The page lists claims from the online conversation around the manuscript (the
+menstrual blood and moon water videos and the ideas around them), each with its
+source and how well it holds up. They live in `theories` in `docs/data.js`.
+
 ## Test the cipher
 
 Held-out folio test: build the cipher on one folio, then apply the same fixed

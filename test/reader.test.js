@@ -71,3 +71,13 @@ test("normalizeAnalysis keeps known fields and tolerates junk", () => {
   assert.strictEqual(a.zodiac.sign, null);
   assert.deepStrictEqual(R.normalizeAnalysis(null).questions, []);
 });
+
+test("every theory has a known evidence status and a source", () => {
+  const ok = ["supported", "partly", "open", "contested", "unverified", "unsupported"];
+  assert.ok(DATA.theories.length > 0);
+  for (const t of DATA.theories) {
+    assert.ok(ok.includes(t.status), t.claim);
+    assert.ok(t.source && t.evidence, t.claim);
+  }
+  assert.match(DATA.theorySafety, /houseplants/);
+});
