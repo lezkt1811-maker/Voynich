@@ -103,6 +103,10 @@
       { claim: "The manuscript has been tested and is genuine.",
         source: "TikTok creator", status: "supported",
         evidence: "Its vellum was radiocarbon-dated to 1404-1438 (University of Arizona, 2009), and most scholars accept it as a genuine 15th-century book. Whether its text holds a real language or code is still unknown." },
+      { claim: "The Voynich's encipherment fits Johannes Hartlieb's advice to hide women's medical recipes in secret letters, and its Rosettes foldout shows intercourse and conception.",
+        source: "Brewer & Lewis, 'The Voynich Manuscript, Dr Johannes Hartlieb and the Encipherment of Women's Secrets', Social History of Medicine 37(3), 2024 (paywalled; checked via abstract and authors' summary)",
+        status: "open",
+        evidence: "Hartlieb (c. 1410-68), a Bavarian physician, recommended secret letters or ciphers for recipes that could cause contraception, abortion or sterility. His own secret alphabet is lost, so any link to the Voynich rests on inference from his other writings. The Rosettes reading is the authors' hypothesis, not a decoding. The paper does not claim Hartlieb wrote the manuscript; the claim that he did comes from Alexander Amelkin's self-published 2023 hypothesis, which has not been peer-reviewed. The manuscript is still undeciphered, and a detailed rebuttal has been posted on the Voynich Ninja forum." },
     ],
     theorySafety: "If you try this, use it only to fertilise houseplants. Don't drink it or bathe in it: water with blood in it grows bacteria fast and can cause infections.",
 
