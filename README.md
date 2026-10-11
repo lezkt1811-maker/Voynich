@@ -69,15 +69,23 @@ array of `{folio, figure, hair, contextHumor, blind}`:
 node read.js --hair-log observations.json
 ```
 
-## Cipher Lab (stage 1)
+## Cipher Lab
 
 `docs/lab.html` is a separate workbench for testing your own EVA cipher. It
-has an EVA analyzer (counts, frequencies, repeats, affixes, search, n-grams),
-a cipher builder (your rules, applied literally, with the rule shown for every
-piece; or a pattern view with no meanings), a folio database with separate
-fields for observation, hypothesis and evidence against, and JSON/CSV export
-and import. Everything is saved in your browser only, so download a backup
-from the Data section. The logic is in `docs/lab-core.js` and is tested in
+keeps the manuscript text, your rules, and your hypotheses apart.
+
+- **EVA Analyzer:** counts, frequencies, repeats, affixes, search, n-grams.
+- **Cipher Builder:** your rules, applied literally, with the rule shown for each piece. A pattern view attaches no meanings.
+- **Folio Explorer:** observation, hypothesis and evidence against kept in separate fields.
+- **Botany:** plant appearance, possible identification, and medicinal claims. Each claim needs a source, and the lab gives no treatment advice.
+- **Symbols:** zodiac signs, stars and diagrams, each marked visible, documented or hypothesis.
+- **Patterns:** word lengths, position frequencies, word runs, passage comparison, and search across saved folios.
+- **Translate:** the exact passage, the literal output, and your interpretation. Several competing hypotheses per passage are allowed.
+- **Hypotheses:** blind testing. Blind folios hide their drawing descriptions. Predictions must be locked before the reveal.
+- **Data:** JSON backup and import, CSV exports, and a text report that leaves out hidden descriptions.
+
+Everything is saved in your browser only, so download a backup from the Data
+section. The logic is in `docs/lab-core.js` and is tested in
 `test/lab-core.test.js`.
 
 Tests: `node --test test/*.test.js`

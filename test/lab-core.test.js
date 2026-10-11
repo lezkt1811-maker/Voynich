@@ -130,3 +130,129 @@ test("dashboard counts records and reports unmapped tokens for the sample", () =
   assert.strictEqual(d.rules, 1);
   assert.strictEqual(d.unmapped.untouched, 1);
 });
+
+// ---------- Stage 2 ----------
+
+test("plant medicinal claims need a source and a kind; the appearance stays separate", () => {
+  assert.throws(() => L.cleanPlant({ folio: "f1r", medicinalClaims: [{ claim: "helps X" }] }), /needs its source/);
+  const p = L.cleanPlant({ folio: "f1r", root: "thick", identification: "maybe sage", medicinalClaims: [{ claim: "c", source: "s", kind: "made up" }] });
+  assert.strictEqual(p.root, "thick");
+  assert.strictEqual(p.identification, "maybe sage");
+  assert.strictEqual(p.medicinalClaims[0].kind, "hypothesis");
+});
+
+test("symbols default to a hypothesis association and an 'other' kind", () => {
+  assert.throws(() => L.cleanSymbol({ folios: ["f1r"] }), /needs a name/);
+  const s = L.cleanSymbol({ name: "sun", kind: "celestial", association: "seen", folios: ["f70v", "", " f71r "] });
+  assert.strictEqual(s.association, "hypothesis");
+  assert.deepStrictEqual(s.folios, ["f70v", "f71r"]);
+});
+
+test("translations need the exact passage and an interpretation, and keep the rules used", () => {
+  assert.throws(() => L.cleanTranslation({ interpretation: "x" }), /exact EVA passage/);
+  assert.throws(() => L.cleanTranslation({ passage: "daiin" }), /Write the interpretation/);
+  const t = L.cleanTranslation({ passage: "daiin", interpretation: "a leaf?", rules: ["r1", "", "r1"] });
+  assert.deepStrictEqual(t.rules, ["r1", "r1"]);
+});
+
+test("rulesUsed lists only the rules that produced output, in first-use order", () => {
+  const rules = [
+    { id: "a", type: "word", source: "daiin", meaning: "leaf" },
+    { id: "b", type: "sequence", source: "ch", meaning: "root" },
+    { id: "c", type: "sequence", source: "zz", meaning: "never" },
+  ];
+  assert.deepStrictEqual(L.rulesUsed("chedy daiin chol", rules), ["b", "a"]);
+});
+
+test("hypotheses cannot be revealed before their predictions are locked", () => {
+  const h = L.cleanHypothesis({ statement: "s", blindFolios: ["f75r"], predictions: "" });
+  assert.throws(() => L.revealBlind(h), /Lock your predictions/);
+  assert.throws(() => L.lockPredictions(h), /Write your predictions/);
+  const locked = L.lockPredictions({ ...h, predictions: "red hair near stars" }, "2026-01-01T00:00:00.000Z");
+  assert.strictEqual(locked.predictionsLockedAt, "2026-01-01T00:00:00.000Z");
+  assert.throws(() => L.lockPredictions(locked), /already locked/);
+  assert.strictEqual(L.revealBlind(locked, "2026-01-02T00:00:00.000Z").revealedAt, "2026-01-02T00:00:00.000Z");
+});
+
+test("a folio stays hidden until every hypothesis that blinds it is revealed", () => {
+  const h1 = { blindFolios: ["f75r"], revealedAt: null };
+  const h2 = { blindFolios: ["f75r", "f76r"], revealedAt: "x" };
+  assert.ok(L.hiddenFolioIds([h1, h2]).has("f75r"));
+  assert.ok(!L.hiddenFolioIds([h2]).has("f75r"));
+  assert.ok(!L.hiddenFolioIds([h2]).has("f76r"));
+});
+
+test("the report does not show drawing descriptions of folios still under blind test", () => {
+  const state = L.emptyState();
+  state.folios.push(L.cleanFolio({ folio: "f75r", illustration: "SECRET DRAWING", transcription: "daiin" }));
+  state.folios.push(L.cleanFolio({ folio: "f76r", illustration: "visible drawing" }));
+  state.hypotheses.push(L.cleanHypothesis({ statement: "h", blindFolios: ["f75r"] }));
+  const report = L.buildReport(state);
+  assert.ok(!report.includes("SECRET DRAWING"));
+  assert.ok(report.includes("visible drawing"));
+  assert.ok(report.includes("daiin"));
+  assert.match(report, /has not been deciphered/);
+  const revealed = { ...state, hypotheses: [{ ...state.hypotheses[0], revealedAt: "2026-01-02" }] };
+  assert.ok(L.buildReport(revealed).includes("SECRET DRAWING"));
+});
+
+test("word lengths and position frequencies are counted from the text", () => {
+  const dist = L.wordLengthDistribution("ab cd efg", { conventions: false });
+  assert.deepStrictEqual(dist, [{ length: 2, count: 2 }, { length: 3, count: 1 }]);
+  const pos = L.positionFrequencies("ab ac", { conventions: false }, 2);
+  assert.strictEqual(pos.start[1][0].text, "a");
+  assert.strictEqual(pos.start[1][0].count, 2);
+  assert.strictEqual(pos.end[1].find((e) => e.text === "c").count, 1);
+});
+
+test("token n-grams repeat across words and carry locations", () => {
+  const g = L.tokenNgrams("daiin chedy daiin chedy", 2, { conventions: false });
+  assert.strictEqual(g[0].text, "daiin chedy");
+  assert.strictEqual(g[0].count, 2);
+  assert.deepStrictEqual(g[0].locations[1], { line: 0, locus: null, index: 2 });
+});
+
+test("passage comparison reports shared words and says it is not a translation", () => {
+  const c = L.compareTexts("daiin chedy", "daiin shedy", { conventions: false });
+  assert.strictEqual(c.sharedWords, 1);
+  assert.ok(c.jaccard > 0 && c.jaccard < 1);
+  assert.match(c.note, /do not show/);
+});
+
+test("cross-folio search finds a sequence in every saved folio, tagged by folio", () => {
+  const folios = [L.cleanFolio({ folio: "f1r", transcription: "daiin" }), L.cleanFolio({ folio: "f2r", transcription: "chedy daiin" })];
+  const hits = L.crossFolioSearch(folios, "daiin", { conventions: false });
+  assert.deepStrictEqual(hits.map((h) => h.folio), ["f1r", "f2r"]);
+});
+
+test("merging adds new records of every kind and keeps existing ones", () => {
+  const current = L.emptyState();
+  current.plants.push(L.cleanPlant({ id: "p1", folio: "f1r" }));
+  const incoming = L.emptyState();
+  incoming.plants.push(L.cleanPlant({ id: "p1", folio: "changed" }), L.cleanPlant({ id: "p2", folio: "f2r" }));
+  incoming.hypotheses.push(L.cleanHypothesis({ id: "h1", statement: "s" }));
+  const m = L.mergeNew(current, incoming);
+  assert.strictEqual(m.added.plants, 1);
+  assert.strictEqual(m.skipped.plants, 1);
+  assert.strictEqual(m.added.hypotheses, 1);
+  assert.strictEqual(m.data.plants.find((p) => p.id === "p1").folio, "f1r");
+});
+
+test("a backup from before stage 2 imports cleanly with the new kinds empty", () => {
+  const v = L.validateBackup({ schema: 1, folios: [{ folio: "f1r" }], rules: [] });
+  assert.strictEqual(v.ok, true);
+  assert.deepStrictEqual(v.data.hypotheses, []);
+  const bad = L.validateBackup({ hypotheses: [{ predictions: "x" }], plants: "nope" });
+  assert.strictEqual(bad.ok, false);
+  assert.strictEqual(bad.errors.length, 2);
+});
+
+test("the stage 2 export round-trips every kind of record", () => {
+  const state = L.emptyState();
+  state.symbols.push(L.cleanSymbol({ name: "sun", folios: ["f70v"] }));
+  state.translations.push(L.cleanTranslation({ passage: "daiin", interpretation: "x" }));
+  const back = L.validateBackup(JSON.parse(L.exportBackup(state)));
+  assert.strictEqual(back.ok, true);
+  assert.strictEqual(back.data.symbols[0].name, "sun");
+  assert.strictEqual(back.data.translations[0].passage, "daiin");
+});

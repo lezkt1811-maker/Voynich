@@ -69,6 +69,10 @@ tr.pick td { background: var(--violet-soft); }
 .locus { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
 details summary { cursor: pointer; min-height: 48px; display: flex; align-items: center; color: var(--cyan); }
 footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
+.tri { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 900px) { .tri { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.tri .card { align-content: start; }
+.tri .mono { white-space: pre-wrap; }
 </style>
 </head>
 <body>
@@ -85,6 +89,11 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
     <button type="button" data-view="analyzer" aria-pressed="false">EVA Analyzer</button>
     <button type="button" data-view="cipher" aria-pressed="false">Cipher Builder</button>
     <button type="button" data-view="folios" aria-pressed="false">Folio Explorer</button>
+    <button type="button" data-view="botany" aria-pressed="false">Botany</button>
+    <button type="button" data-view="symbols" aria-pressed="false">Symbols</button>
+    <button type="button" data-view="patterns" aria-pressed="false">Patterns</button>
+    <button type="button" data-view="translate" aria-pressed="false">Translate</button>
+    <button type="button" data-view="hyp" aria-pressed="false">Hypotheses</button>
     <button type="button" data-view="data" aria-pressed="false">Data</button>
   </nav>
 
@@ -257,6 +266,165 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
     </div>
   </section>
 
+  <!-- BOTANICAL RESEARCH -->
+  <section class="view" id="v-botany" aria-label="Botanical Research">
+    <div class="card">
+      <h2 id="plant-heading">New plant record</h2>
+      <p>Keep three things apart: what the illustration shows, what you think the plant may be, and any medicinal claim, which needs its source. A drawing is not an identification, and an identification is not a medicinal claim. The lab does not recommend any use.</p>
+      <form id="plant-form" class="grid2" novalidate>
+        <label>Folio <input id="p-folio" required placeholder="e.g. f1r"></label>
+        <label>Confidence in identification <select id="p-conf"></select></label>
+        <label style="grid-column:1/-1">Illustration (what is drawn) <textarea id="p-ill" rows="2"></textarea></label>
+        <label>Root shape <textarea id="p-root" rows="2"></textarea></label>
+        <label>Stem shape <textarea id="p-stem" rows="2"></textarea></label>
+        <label>Leaf shape <textarea id="p-leaf" rows="2"></textarea></label>
+        <label>Flower or fruit <textarea id="p-flower" rows="2"></textarea></label>
+        <label>Possible modern identification (your hypothesis) <textarea id="p-id" rows="2"></textarea></label>
+        <label>Alternative identifications <textarea id="p-alt" rows="2"></textarea></label>
+        <label>References <textarea id="p-refs" rows="2"></textarea></label>
+        <label style="grid-column:1/-1">Notes <textarea id="p-notes" rows="2"></textarea></label>
+        <div style="grid-column:1/-1;display:grid;gap:8px">
+          <h3>Medicinal claims (historical, modern, or your hypothesis)</h3>
+          <div class="grid2">
+            <label>Claim <input id="p-claim" placeholder="what the source says"></label>
+            <label>Source (required) <input id="p-claim-src" placeholder="author, title, year, or 'none found'"></label>
+          </div>
+          <div class="btns">
+            <label>Kind <select id="p-claim-kind"></select></label>
+            <button class="ghost" type="button" id="p-claim-add">Add claim</button>
+          </div>
+          <div class="msg" id="p-claim-msg" role="status"></div>
+          <div id="p-claims-list" class="note"></div>
+        </div>
+        <div class="btns" style="grid-column:1/-1">
+          <button class="act" type="submit">Save plant</button>
+          <button class="ghost" type="button" id="p-new">New record</button>
+          <button class="danger" type="button" id="p-del">Delete</button>
+        </div>
+        <div class="msg" id="plant-msg" style="grid-column:1/-1" role="status"></div>
+      </form>
+    </div>
+    <div class="card">
+      <label>Search plant records <input id="ps-q" placeholder="folio, identification, notes"></label>
+      <div class="tbl" id="plant-tbl"></div>
+    </div>
+  </section>
+
+  <!-- SYMBOLS AND ASTROLOGY -->
+  <section class="view" id="v-symbols" aria-label="Astrology and Symbols">
+    <div class="card">
+      <h2 id="sym-heading">New symbol</h2>
+      <p>Record how each association is known: <b>visible</b> (you can see it on the page), <b>documented</b> (a historical source says so, cite it in notes), or <b>hypothesis</b> (your proposal). A zodiac symbol next to a text does not show what the text means.</p>
+      <form id="sym-form" class="grid2" novalidate>
+        <label>Name <input id="s-name" required placeholder="e.g. Leo roundel"></label>
+        <label>Kind <select id="s-kind"></select></label>
+        <label>Association <select id="s-assoc"></select></label>
+        <label>Linked folios (comma separated) <input id="s-folios" placeholder="f70v, f71r"></label>
+        <label style="grid-column:1/-1">Description <textarea id="s-desc" rows="2"></textarea></label>
+        <label style="grid-column:1/-1">Notes and sources <textarea id="s-notes" rows="2"></textarea></label>
+        <div class="btns" style="grid-column:1/-1">
+          <button class="act" type="submit">Save symbol</button>
+          <button class="ghost" type="button" id="s-new">New symbol</button>
+          <button class="danger" type="button" id="s-del">Delete</button>
+        </div>
+        <div class="msg" id="sym-msg" style="grid-column:1/-1" role="status"></div>
+      </form>
+    </div>
+    <div class="card"><h3>Symbols</h3><div class="tbl" id="sym-tbl"></div></div>
+  </section>
+
+  <!-- PATTERN DETECTOR -->
+  <section class="view" id="v-patterns" aria-label="Pattern Detector">
+    <div class="card">
+      <h2>Pattern detector</h2>
+      <p class="note" id="pt-limit"></p>
+      <div class="grid2">
+        <label>Passage A <textarea id="pt-a" spellcheck="false"></textarea></label>
+        <label>Passage B (for comparison) <textarea id="pt-b" spellcheck="false"></textarea></label>
+      </div>
+      <div class="grid2">
+        <label>Saved folio for A <select id="pt-fa"></select></label>
+        <label>Saved folio for B <select id="pt-fb"></select></label>
+      </div>
+      <div class="btns">
+        <button class="ghost" type="button" id="pt-usefa">Use folio for A</button>
+        <button class="ghost" type="button" id="pt-usefb">Use folio for B</button>
+      </div>
+      <div class="btns">
+        <label>Sequence length <select id="pt-n"><option>2</option><option selected>3</option><option>4</option></select></label>
+        <button class="act" type="button" id="pt-len">Word lengths</button>
+        <button class="act" type="button" id="pt-pos">Position frequencies</button>
+        <button class="act" type="button" id="pt-runs">Word runs in A</button>
+        <button class="act" type="button" id="pt-cmp">Compare A and B</button>
+      </div>
+      <div class="btns">
+        <label style="flex:1 1 220px">Search every saved folio for <input id="pt-q" placeholder="a sequence"></label>
+        <button class="act" type="button" id="pt-search">Search saved folios</button>
+      </div>
+      <div class="msg" id="pt-msg" role="status"></div>
+      <div id="pt-out"></div>
+    </div>
+  </section>
+
+  <!-- TRANSLATION WORKSPACE -->
+  <section class="view" id="v-translate" aria-label="Translation Workspace">
+    <div class="card">
+      <h2>Translation workspace</h2>
+      <p>Every translation here is a hypothesis about one exact passage. You can keep several competing translations of the same passage. None of them is an established Voynich translation.</p>
+      <label>Passage (exact EVA, copied from the folio) <textarea id="tr-src" spellcheck="false"></textarea></label>
+      <div class="btns"><button class="act" type="button" id="tr-show">Show the three columns</button></div>
+      <div class="msg" id="tr-msg" role="status"></div>
+    </div>
+    <div class="tri">
+      <div class="card"><h3>1. Original EVA</h3><div id="tr-orig" class="mono"></div></div>
+      <div class="card"><h3>2. Literal output (your rules only)</h3><div id="tr-lit"></div></div>
+      <div class="card">
+        <h3>3. Your interpretation (hypothesis)</h3>
+        <form id="tr-form" class="col" novalidate>
+          <label>Interpretation <textarea id="tr-interp" rows="3"></textarea></label>
+          <label>Alternative explanations <textarea id="tr-alt" rows="2"></textarea></label>
+          <label>Confidence <select id="tr-conf"></select></label>
+          <label>Folio <input id="tr-folio" placeholder="e.g. f78r"></label>
+          <label>Evidence for <textarea id="tr-for" rows="2"></textarea></label>
+          <label>Evidence against <textarea id="tr-against" rows="2"></textarea></label>
+          <p class="note">The rules used are recorded automatically from the literal output.</p>
+          <button class="act" type="submit">Save translation</button>
+          <div class="msg" id="tr-save-msg" role="status"></div>
+        </form>
+      </div>
+    </div>
+    <div class="card"><h3>Saved translations, grouped by passage</h3><div id="tr-list"></div></div>
+  </section>
+
+  <!-- HYPOTHESIS LAB -->
+  <section class="view" id="v-hyp" aria-label="Hypothesis Lab">
+    <div class="card">
+      <h2 id="hyp-heading">New hypothesis</h2>
+      <p>Blind test: list the folios to blind. Their drawing descriptions stay hidden until you reveal them. Write your predictions and lock them first. Locked predictions cannot be edited, and the reveal is only available after locking. That order is what stops the test from being fitted to the answer.</p>
+      <form id="hyp-form" class="grid2" novalidate>
+        <label style="grid-column:1/-1">Statement <textarea id="h-stmt" rows="2"></textarea></label>
+        <label>Status <select id="h-status"></select></label>
+        <label>Confidence <select id="h-conf"></select></label>
+        <label>Relevant folios (comma separated) <input id="h-folios" placeholder="f75r, f76r"></label>
+        <label>Blind folios (comma separated) <input id="h-blind" placeholder="f77r, f78r"></label>
+        <label style="grid-column:1/-1">Predictions (write before locking) <textarea id="h-pred" rows="3"></textarea></label>
+        <label>Supporting observations <textarea id="h-sup" rows="2"></textarea></label>
+        <label>Contradicting observations <textarea id="h-con" rows="2"></textarea></label>
+        <label>Test results <textarea id="h-res" rows="2"></textarea></label>
+        <label>Research notes <textarea id="h-notes" rows="2"></textarea></label>
+        <div class="btns" style="grid-column:1/-1">
+          <button class="act" type="submit">Save hypothesis</button>
+          <button class="ghost" type="button" id="h-lock">Lock predictions</button>
+          <button class="ghost" type="button" id="h-reveal">Reveal blind folios</button>
+          <button class="ghost" type="button" id="h-new">New hypothesis</button>
+          <button class="danger" type="button" id="h-del">Delete</button>
+        </div>
+        <div class="msg" id="hyp-msg" style="grid-column:1/-1" role="status"></div>
+      </form>
+    </div>
+    <div class="card"><h3>Your hypotheses</h3><div id="hyp-list"></div></div>
+  </section>
+
   <!-- DATA -->
   <section class="view" id="v-data" aria-label="Data">
     <div class="card">
@@ -266,6 +434,8 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
         <button class="act" type="button" id="x-json">Download backup (JSON)</button>
         <button class="ghost" type="button" id="x-folio-csv">Folios as CSV</button>
         <button class="ghost" type="button" id="x-rule-csv">Cipher rules as CSV</button>
+        <button class="ghost" type="button" id="x-report">Research report (TXT)</button>
+        <button class="ghost" type="button" id="x-plant-csv">Plants as CSV</button>
       </div>
       <div class="msg" id="x-msg" role="status"></div>
     </div>
@@ -302,14 +472,23 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
 
   // ---- storage: every read and write is guarded, because browsers can refuse it
   let storeOK = true;
+  let loadProblem = null;
+  // Reads the saved lab. If the saved data cannot be read, the unreadable copy
+  // is kept under its own key before the lab starts empty, so the next save
+  // cannot silently overwrite it.
   function loadState() {
+    let raw = null;
+    try { raw = localStorage.getItem(KEY); } catch (e) { storeOK = false; return L.emptyState(); }
+    if (!raw) return L.emptyState();
+    let why = "";
     try {
-      const raw = localStorage.getItem(KEY);
-      if (!raw) return { folios: [], rules: [] };
       const v = L.validateBackup(JSON.parse(raw));
       if (v.ok) return v.data;
-      return { folios: [], rules: [] };
-    } catch (e) { storeOK = false; return { folios: [], rules: [] }; }
+      why = v.errors.join(" ");
+    } catch (e) { why = e.message; }
+    try { localStorage.setItem(KEY + "-unreadable-" + Date.now(), raw); } catch (e) {}
+    loadProblem = "Your saved lab data could not be read (" + why + "). A copy was kept in this browser under a separate key. Import a backup from the Data section if you have one.";
+    return L.emptyState();
   }
   let state = loadState();
   function save() {
@@ -320,6 +499,7 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
     $("store-note").textContent = storeOK
       ? "Saved in this browser only. Clearing site data or using another browser will not show these records. Download a backup from the Data section regularly."
       : "This browser will not save research data here (storage is blocked). Work is kept only on this page until you reload. Download a backup before leaving.";
+    if (loadProblem) $("store-note").textContent += " " + loadProblem;
     $("data-reminder").textContent = $("store-note").textContent;
   }
 
@@ -328,6 +508,9 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
     for (const b of document.querySelectorAll("nav button")) b.setAttribute("aria-pressed", String(b.dataset.view === view));
     for (const s of document.querySelectorAll(".view")) s.classList.toggle("on", s.id === "v-" + view);
     if (view === "dash") renderDash();
+    if (view === "patterns") renderPatternSelects();
+    if (view === "translate") renderTranslations();
+    if (view === "hyp") renderHypList();
     window.scrollTo(0, 0);
   }
   document.querySelector("nav").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) show(b.dataset.view); });
@@ -345,10 +528,10 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
   function renderDash() {
     const sample = $("cb-src").value.trim() || $("an-src").value.trim();
     const d = L.dashboard(state, sample, { conventions: true });
-    $("dash-stats").innerHTML = [
-      ["Folio records", d.folios], ["Cipher rules", d.rules],
-      ["Untouched tokens", d.unmapped ? d.unmapped.untouched : "–"], ["Partly mapped tokens", d.unmapped ? d.unmapped.partial : "–"],
-    ].map(([k, v], i) => `<div class="stat${i === 2 ? " key" : ""}"><b>${esc(v)}</b><span>${esc(k)}</span></div>`).join("");
+    const cards = [["Folio records", d.folios], ["Cipher rules", d.rules], ["Plant records", d.plants], ["Symbols", d.symbols],
+      ["Translations", d.translations], ["Hypotheses", d.hypotheses],
+      ["Untouched tokens", d.unmapped ? d.unmapped.untouched : "–"], ["Partly mapped tokens", d.unmapped ? d.unmapped.partial : "–"]];
+    $("dash-stats").innerHTML = cards.map(([k, v]) => `<div class="stat${k === "Untouched tokens" ? " key" : ""}"><b>${esc(v)}</b><span>${esc(k)}</span></div>`).join("");
     $("dash-unmapped").textContent = sample ? "" : "Paste text into the EVA Analyzer or Cipher Builder to see unmapped counts here.";
     $("dash-recent").innerHTML = d.recent.length
       ? d.recent.map((r) => `<div>${esc(r.label)} <span class="pill muted">${esc(new Date(r.when).toLocaleString())}</span></div>`).join("")
@@ -490,6 +673,13 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
     editingFolio = f ? f.id : null;
     $("folio-heading").textContent = f ? "Folio " + f.folio : "New folio record";
     for (const [id, key] of Object.entries(FIELDS)) $(id).value = f ? f[key] : (key === "confidence" ? "low" : key === "status" ? "unreviewed" : "");
+    // While a blind test hides this folio, its drawing descriptions are blank and read-only.
+    const hidden = !!f && hiddenNow().has(f.folio);
+    for (const [key, id] of Object.entries(VISUAL_IDS)) {
+      $(id).value = hidden ? "" : (f ? f[key] : $(id).value);
+      $(id).readOnly = hidden;
+      $(id).placeholder = hidden ? "Hidden by a blind test until you reveal it" : "";
+    }
     $("rel-card").hidden = !f;
     renderRelated();
     renderFolioTable();
@@ -504,7 +694,10 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
     e.preventDefault();
     try {
       const prior = editingFolio ? state.folios.find((f) => f.id === editingFolio) : null;
-      const rec = L.cleanFolio({ ...folioFromForm(), id: editingFolio || undefined, related: prior ? prior.related : [],
+      const keepVisual = !!prior && hiddenNow().has(prior.folio);
+      const data = folioFromForm();
+      if (keepVisual) for (const key of Object.keys(VISUAL_IDS)) data[key] = prior[key];
+      const rec = L.cleanFolio({ ...data, id: editingFolio || undefined, related: prior ? prior.related : [],
         dateAdded: prior ? prior.dateAdded : now(), dateEdited: now() });
       state.folios = editingFolio ? state.folios.map((f) => (f.id === editingFolio ? rec : f)) : state.folios.concat([rec]);
       editingFolio = rec.id; save();
@@ -589,7 +782,8 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
     if (!pendingImport) { $("i-msg").textContent = "Choose a backup file first."; return; }
     const m = L.mergeNew(state, pendingImport);
     state = m.data; save(); pendingImport = null; $("i-file").value = "";
-    $("i-msg").textContent = `Added ${m.added.folios} folio records and ${m.added.rules} rules. Kept ${m.skipped.folios + m.skipped.rules} that already existed.`;
+    const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
+    $("i-msg").textContent = `Added ${sum(m.added)} records. Kept ${sum(m.skipped)} that already existed.`;
     renderRules(); renderFolioTable(); renderDash();
   });
   $("i-replace").addEventListener("click", () => {
@@ -597,19 +791,325 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
     if (!confirm("Replace everything in the lab with this file? Current records will be lost unless you have a backup.")) return;
     state = pendingImport; save(); pendingImport = null; $("i-file").value = "";
     $("i-msg").textContent = "Lab replaced from the backup file.";
-    clearRuleForm(); fillFolio(null); renderDash();
+    clearRuleForm(); fillFolio(null); fillPlant(null); fillSymbol(null); fillHyp(null); renderDash();
   });
   $("clear").addEventListener("click", () => {
     if (!confirm("Delete every folio record and rule in this browser? Download a backup first if you want to keep them.")) return;
-    state = { folios: [], rules: [] }; save(); clearRuleForm(); fillFolio(null); renderDash();
+    state = L.emptyState(); save(); clearRuleForm(); fillFolio(null); fillPlant(null); fillSymbol(null); fillHyp(null); renderDash();
     $("x-msg").textContent = "All research data cleared.";
   });
+
+  // ---- stage 2: blind-test helpers used by the folio, plant and symbol forms
+  const hiddenNow = () => L.hiddenFolioIds(state.hypotheses);
+  const fillSel = (id, values, pick) => { $(id).innerHTML = values.map((v) => `<option${v === pick ? " selected" : ""}>${esc(v)}</option>`).join(""); };
+  const listOf = (v) => v.split(",").map((x) => x.trim()).filter(Boolean);
+  const folioOptions = (id, pick) => {
+    $(id).innerHTML = `<option value="">(none)</option>` + state.folios.map((f) => `<option value="${esc(f.folio)}"${f.folio === pick ? " selected" : ""}>${esc(f.folio)}</option>`).join("");
+  };
+  const flash = (id, text, bad) => { $(id).textContent = text; $(id).classList.toggle("err", !!bad); };
+
+  // ---- folio explorer: hide drawing descriptions while a blind test is open
+  const VISUAL_IDS = { illustration: "f-ill", botany: "f-bot", figures: "f-fig", astronomy: "f-ast" };
+
+  // ---- stage 2: botanical research
+  const PLANT_IDS = { illustration: "p-ill", root: "p-root", stem: "p-stem", leaf: "p-leaf", flowerFruit: "p-flower",
+    identification: "p-id", alternatives: "p-alt", references: "p-refs", notes: "p-notes" };
+  let editingPlant = null, plantClaims = [];
+  fillSel("p-conf", L.CONFIDENCE, "low");
+  fillSel("p-claim-kind", L.CLAIM_KINDS, "hypothesis");
+  function renderClaims() {
+    $("p-claims-list").innerHTML = plantClaims.length
+      ? plantClaims.map((c, i) => `<div>(${esc(c.kind)}) ${esc(c.claim)} · source: ${esc(c.source)} <button class="del" type="button" data-claim="${i}">Remove</button></div>`).join("")
+      : "No medicinal claims recorded.";
+  }
+  function fillPlant(p) {
+    editingPlant = p ? p.id : null;
+    const hidden = !!p && hiddenNow().has(p.folio);
+    $("plant-heading").textContent = p ? "Plant on " + p.folio : "New plant record";
+    $("p-folio").value = p ? p.folio : "";
+    $("p-conf").value = p ? p.confidence : "low";
+    for (const [k, id] of Object.entries(PLANT_IDS)) {
+      const visual = L.PLANT_VISUAL_FIELDS.includes(k) && hidden;
+      $(id).value = visual ? "" : (p ? p[k] : "");
+      $(id).readOnly = visual;
+      $(id).placeholder = visual ? "Hidden by a blind test until you reveal it" : "";
+    }
+    plantClaims = p ? p.medicinalClaims.slice() : [];
+    renderClaims();
+    renderPlantTable();
+    flash("plant-msg", "");
+  }
+  function renderPlantTable() {
+    const q = $("ps-q").value.trim().toLowerCase();
+    const hidden = hiddenNow();
+    const rows = state.plants.filter((p) => !q || JSON.stringify(p).toLowerCase().includes(q));
+    $("plant-tbl").innerHTML = rows.length
+      ? `<table><tr><th>Folio</th><th>Possible identification</th><th>Medicinal claims</th><th>Confidence</th></tr>${rows.map((p) =>
+          `<tr class="${p.id === editingPlant ? "pick" : ""}"><td><button class="ghost" type="button" data-plant="${esc(p.id)}">${esc(p.folio)}</button></td>
+           <td>${hidden.has(p.folio) ? '<span class="note">hidden by blind test</span>' : esc(p.identification || "not recorded")}</td>
+           <td>${p.medicinalClaims.length ? p.medicinalClaims.map((c) => `<div>${esc(c.claim)} <span class="note">(${esc(c.kind)}; ${esc(c.source)})</span></div>`).join("") : '<span class="note">none recorded</span>'}</td>
+           <td>${esc(p.confidence)}</td></tr>`).join("")}</table>`
+      : `<p class="note">${state.plants.length ? "No records match." : "No plant records yet."}</p>`;
+  }
+  $("p-claim-add").addEventListener("click", () => {
+    const claim = $("p-claim").value.trim(), source = $("p-claim-src").value.trim();
+    if (!claim) return flash("p-claim-msg", "Write the claim first.", true);
+    if (!source) return flash("p-claim-msg", "Every medicinal claim needs a source. Write 'none found' if you have not located one.", true);
+    plantClaims.push({ claim, source, kind: $("p-claim-kind").value });
+    $("p-claim").value = ""; $("p-claim-src").value = "";
+    flash("p-claim-msg", "Claim added. Save the plant to keep it."); renderClaims();
+  });
+  $("p-claims-list").addEventListener("click", (e) => {
+    const i = e.target.dataset.claim; if (i === undefined) return;
+    plantClaims.splice(Number(i), 1); renderClaims();
+  });
+  $("plant-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    try {
+      const prior = state.plants.find((p) => p.id === editingPlant);
+      const keepVisual = !!prior && hiddenNow().has(prior.folio);
+      const o = { folio: $("p-folio").value, confidence: $("p-conf").value, medicinalClaims: plantClaims,
+        dateAdded: prior ? prior.dateAdded : now(), dateEdited: now() };
+      for (const [k, id] of Object.entries(PLANT_IDS)) o[k] = keepVisual && L.PLANT_VISUAL_FIELDS.includes(k) ? prior[k] : $(id).value;
+      const rec = L.cleanPlant({ ...o, id: editingPlant || undefined });
+      state.plants = prior ? state.plants.map((p) => (p.id === prior.id ? rec : p)) : state.plants.concat([rec]);
+      save(); fillPlant(rec); flash("plant-msg", "Plant record saved.");
+    } catch (err) { flash("plant-msg", err.message, true); }
+  });
+  $("p-new").addEventListener("click", () => fillPlant(null));
+  $("p-del").addEventListener("click", () => {
+    const p = state.plants.find((x) => x.id === editingPlant); if (!p) return fillPlant(null);
+    if (!confirm("Delete the plant record on " + p.folio + "? This cannot be undone.")) return;
+    state.plants = state.plants.filter((x) => x.id !== p.id); save(); fillPlant(null); renderDash();
+  });
+  $("ps-q").addEventListener("input", renderPlantTable);
+  $("plant-tbl").addEventListener("click", (e) => {
+    const id = e.target.dataset.plant; if (!id) return;
+    fillPlant(state.plants.find((p) => p.id === id));
+  });
+
+  // ---- stage 2: symbols and astrology
+  let editingSymbol = null;
+  fillSel("s-kind", L.SYMBOL_KINDS, "other");
+  fillSel("s-assoc", L.ASSOCIATIONS, "hypothesis");
+  function fillSymbol(s) {
+    editingSymbol = s ? s.id : null;
+    $("sym-heading").textContent = s ? "Symbol: " + s.name : "New symbol";
+    $("s-name").value = s ? s.name : ""; $("s-kind").value = s ? s.kind : "other";
+    $("s-assoc").value = s ? s.association : "hypothesis"; $("s-folios").value = s ? s.folios.join(", ") : "";
+    $("s-desc").value = s ? s.description : ""; $("s-notes").value = s ? s.notes : "";
+    renderSymbolTable(); flash("sym-msg", "");
+  }
+  function renderSymbolTable() {
+    const hidden = hiddenNow();
+    $("sym-tbl").innerHTML = state.symbols.length
+      ? `<table><tr><th>Name</th><th>Kind</th><th>Association</th><th>Folios</th><th>Description</th></tr>${state.symbols.map((s) =>
+          `<tr class="${s.id === editingSymbol ? "pick" : ""}"><td><button class="ghost" type="button" data-sym="${esc(s.id)}">${esc(s.name)}</button></td><td>${esc(s.kind)}</td>
+           <td><span class="pill ${s.association === "hypothesis" ? "pink" : ""}">${esc(s.association)}</span></td><td>${esc(s.folios.join(", "))}</td>
+           <td>${s.folios.some((f) => hidden.has(f)) ? '<span class="note">hidden by blind test</span>' : esc(s.description)}</td></tr>`).join("")}</table>`
+      : `<p class="note">No symbols yet.</p>`;
+  }
+  $("sym-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    try {
+      const prior = state.symbols.find((s) => s.id === editingSymbol);
+      const rec = L.cleanSymbol({ id: editingSymbol || undefined, name: $("s-name").value, kind: $("s-kind").value,
+        association: $("s-assoc").value, folios: listOf($("s-folios").value), description: $("s-desc").value,
+        notes: $("s-notes").value, dateAdded: prior ? prior.dateAdded : now() });
+      state.symbols = prior ? state.symbols.map((s) => (s.id === prior.id ? rec : s)) : state.symbols.concat([rec]);
+      save(); fillSymbol(rec); flash("sym-msg", "Symbol saved.");
+    } catch (err) { flash("sym-msg", err.message, true); }
+  });
+  $("s-new").addEventListener("click", () => fillSymbol(null));
+  $("s-del").addEventListener("click", () => {
+    const s = state.symbols.find((x) => x.id === editingSymbol); if (!s) return fillSymbol(null);
+    if (!confirm("Delete the symbol \"" + s.name + "\"?")) return;
+    state.symbols = state.symbols.filter((x) => x.id !== s.id); save(); fillSymbol(null); renderDash();
+  });
+  $("sym-tbl").addEventListener("click", (e) => {
+    const id = e.target.dataset.sym; if (!id) return;
+    fillSymbol(state.symbols.find((s) => s.id === id));
+  });
+
+  // ---- stage 2: pattern detector
+  const LIMIT = "Only the text entered here, or the transcriptions saved in this browser, are analysed. No complete corpus is loaded, so these results describe this material only.";
+  $("pt-limit").textContent = LIMIT;
+  function renderPatternSelects() { folioOptions("pt-fa", $("pt-fa").value); folioOptions("pt-fb", $("pt-fb").value); }
+  const folioText = (id) => { const f = state.folios.find((x) => x.folio === $(id).value); return f ? f.transcription : ""; };
+  $("pt-usefa").addEventListener("click", () => { const t = folioText("pt-fa"); if (!t) return flash("pt-msg", "That folio has no saved transcription.", true); $("pt-a").value = t; flash("pt-msg", "Passage A filled from the saved folio."); });
+  $("pt-usefb").addEventListener("click", () => { const t = folioText("pt-fb"); if (!t) return flash("pt-msg", "That folio has no saved transcription.", true); $("pt-b").value = t; flash("pt-msg", "Passage B filled from the saved folio."); });
+  const ptOpts = () => ({ conventions: $("an-conv").checked });
+  const ptTable = (rows, cols) => rows.length
+    ? `<table><tr>${cols.map((c) => `<th>${esc(c.h)}</th>`).join("")}</tr>${rows.map((r) => `<tr>${cols.map((c) => `<td class="${c.cls || ""}">${esc(c.v(r))}</td>`).join("")}</tr>`).join("")}</table>`
+    : `<p class="note">Nothing repeats or matches here.</p>`;
+  const where = (l) => (l.locus || "line " + ((l.line != null ? l.line : 0) + 1)) + (l.word ? " " + l.word : "");
+  $("pt-len").addEventListener("click", () => {
+    const rows = L.wordLengthDistribution($("pt-a").value, ptOpts());
+    $("pt-out").innerHTML = "<h3>Word-length distribution (A)</h3><p class=\"note\">Computational observation.</p>" + ptTable(rows, [{ h: "Word length", v: (r) => r.length, cls: "mono" }, { h: "Words", v: (r) => r.count }]);
+  });
+  $("pt-pos").addEventListener("click", () => {
+    const p = L.positionFrequencies($("pt-a").value, ptOpts(), 3);
+    const block = (title, obj) => `<h3>${title}</h3>` + Object.keys(obj).map((k) => `<div class="note">position ${k}</div>` + ptTable(obj[k], [{ h: "Character", v: (r) => r.text, cls: "mono" }, { h: "Count", v: (r) => r.count }])).join("");
+    $("pt-out").innerHTML = "<p class=\"note\">Computational observation: characters at each position of words in A.</p>" + block("From the start of the word", p.start) + block("From the end of the word", p.end);
+  });
+  $("pt-runs").addEventListener("click", () => {
+    const n = Number($("pt-n").value);
+    const rows = L.tokenNgrams($("pt-a").value, n, ptOpts()).slice(0, 40);
+    $("pt-out").innerHTML = `<h3>Word runs of length ${n} in A</h3><p class="note">Computational observation. A repeated run is not a translation.</p>` +
+      ptTable(rows, [{ h: "Run", v: (r) => r.text, cls: "mono" }, { h: "Count", v: (r) => r.count }, { h: "Where", v: (r) => r.locations.slice(0, 5).map(where).join("; "), cls: "locus" }]);
+  });
+  $("pt-cmp").addEventListener("click", () => {
+    if (!$("pt-a").value.trim() || !$("pt-b").value.trim()) return flash("pt-msg", "Fill in both passages to compare them.", true);
+    const c = L.compareTexts($("pt-a").value, $("pt-b").value, ptOpts());
+    $("pt-out").innerHTML = `<h3>Comparison of A and B</h3><p class="note">${esc(c.note)}</p>
+      <div class="stats"><div class="stat"><b>${c.sharedWords}</b><span>shared distinct words</span></div>
+      <div class="stat"><b>${c.jaccard.toFixed(2)}</b><span>overlap (Jaccard, 0 to 1)</span></div>
+      <div class="stat"><b>${c.wordsA} / ${c.wordsB}</b><span>words in A / B</span></div></div>
+      <p><b>Shared words:</b> <span class="mono">${esc(c.sharedWordList.join(" ") || "none")}</span></p>
+      <p><b>Shared word pairs:</b> <span class="mono">${esc(c.sharedPairs.join("; ") || "none")}</span></p>`;
+  });
+  $("pt-search").addEventListener("click", () => {
+    const q = $("pt-q").value.trim();
+    if (!q) return flash("pt-msg", "Type a sequence to search for.", true);
+    const hits = L.crossFolioSearch(state.folios, q, ptOpts());
+    $("pt-out").innerHTML = `<h3>“${esc(q)}” in saved folios</h3><p class="note">${hits.length} occurrence${hits.length === 1 ? "" : "s"} in ${new Set(hits.map((h) => h.folio)).size} folio${new Set(hits.map((h) => h.folio)).size === 1 ? "" : "s"}. Occurrences are not evidence of meaning on their own.</p>` +
+      ptTable(hits.slice(0, 100), [{ h: "Folio", v: (r) => r.folio, cls: "mono" }, { h: "Word", v: (r) => r.word, cls: "mono" }]);
+  });
+
+  // ---- stage 2: translation workspace
+  fillSel("tr-conf", L.CONFIDENCE, "low");
+  function renderLiteral(text) {
+    const out = L.applyLiteral(text, state.rules, { priority: "longest", conventions: $("an-conv").checked });
+    const ruleSource = (id) => { const r = state.rules.find((x) => x.id === id); return r ? r.source : id; };
+    $("tr-orig").innerHTML = out.map((l) => `<div class="locus">${esc(l.locus || "")}</div>${l.tokens.map((t) => esc(t.token)).join(" ")}`).join("<br>");
+    $("tr-lit").innerHTML = out.map((l) => `<div class="locus">${esc(l.locus || "")}</div><div class="tokens">${l.tokens.map((t) =>
+      `<span class="tok${t.unmapped ? " unmapped" : ""}">${t.pieces.map((p) => p.rule
+        ? `<span class="piece rule">${esc(p.meaning)}</span><small class="locus">${esc(p.text)} · ${esc(ruleSource(p.rule))}</small>`
+        : `<span class="piece none">${esc(p.text)}</span><small>no rule</small>`).join("")}</span>`).join("")}</div>`).join("") ||
+      `<p class="note">Nothing to show yet.</p>`;
+    return out;
+  }
+  $("tr-show").addEventListener("click", () => {
+    const text = $("tr-src").value;
+    if (!text.trim()) return flash("tr-msg", "Paste the exact passage first.", true);
+    renderLiteral(text);
+    flash("tr-msg", state.rules.length ? "Column 2 shows only your rules." : "No rules yet, so every token is unmapped.");
+  });
+  function renderTranslations() {
+    const groups = new Map();
+    for (const t of state.translations) { if (!groups.has(t.passage)) groups.set(t.passage, []); groups.get(t.passage).push(t); }
+    $("tr-list").innerHTML = groups.size ? [...groups.entries()].map(([passage, list]) =>
+      `<div class="card"><div class="mono">${esc(passage.replace(/\n/g, " / ").slice(0, 200))}</div>
+        <span class="pill pink">Hypotheses, not established translations</span>
+        ${list.map((t) => `<div class="card"><b>${esc(t.interpretation)}</b>
+          <div class="note">Rules used: ${esc(t.rules.join(", ") || "none")} · confidence ${esc(t.confidence)}${t.folio ? " · " + esc(t.folio) : ""}</div>
+          ${t.alternatives ? `<div class="note">Alternatives: ${esc(t.alternatives)}</div>` : ""}
+          ${t.evidenceFor ? `<div class="note">For: ${esc(t.evidenceFor)}</div>` : ""}
+          ${t.evidenceAgainst ? `<div class="note">Against: ${esc(t.evidenceAgainst)}</div>` : ""}
+          <div><button class="del" type="button" data-tr="${esc(t.id)}">Delete</button></div></div>`).join("")}</div>`).join("")
+      : `<p class="note">No translations saved yet.</p>`;
+  }
+  $("tr-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    try {
+      const passage = $("tr-src").value;
+      const rec = L.cleanTranslation({ passage, folio: $("tr-folio").value.trim(), interpretation: $("tr-interp").value,
+        alternatives: $("tr-alt").value, confidence: $("tr-conf").value, evidenceFor: $("tr-for").value,
+        evidenceAgainst: $("tr-against").value, rules: L.rulesUsed(passage, state.rules, ptOpts()), dateAdded: now() });
+      state.translations = state.translations.concat([rec]); save();
+      $("tr-interp").value = ""; $("tr-alt").value = ""; $("tr-for").value = ""; $("tr-against").value = "";
+      renderTranslations(); renderLiteral(passage); flash("tr-save-msg", "Translation saved as a hypothesis.");
+    } catch (err) { flash("tr-save-msg", err.message, true); }
+  });
+  $("tr-list").addEventListener("click", (e) => {
+    const id = e.target.dataset.tr; if (!id) return;
+    if (!confirm("Delete this translation?")) return;
+    state.translations = state.translations.filter((t) => t.id !== id); save(); renderTranslations(); renderDash();
+  });
+
+  // ---- stage 2: hypothesis lab with blind testing
+  fillSel("h-status", L.HYP_STATUS, "untested");
+  fillSel("h-conf", L.CONFIDENCE, "low");
+  let editingHyp = null;
+  function fillHyp(h) {
+    editingHyp = h ? h.id : null;
+    $("hyp-heading").textContent = h ? "Hypothesis" : "New hypothesis";
+    $("h-stmt").value = h ? h.statement : ""; $("h-status").value = h ? h.status : "untested"; $("h-conf").value = h ? h.confidence : "low";
+    $("h-folios").value = h ? h.folios.join(", ") : ""; $("h-blind").value = h ? h.blindFolios.join(", ") : "";
+    $("h-pred").value = h ? h.predictions : ""; $("h-pred").readOnly = !!(h && h.predictionsLockedAt);
+    $("h-sup").value = h ? h.supporting : ""; $("h-con").value = h ? h.contradicting : "";
+    $("h-res").value = h ? h.testResults : ""; $("h-notes").value = h ? h.notes : "";
+    $("h-lock").disabled = !!(h && h.predictionsLockedAt);
+    $("h-reveal").disabled = !(h && h.predictionsLockedAt && !h.revealedAt && h.blindFolios.length);
+    renderHypList(); flash("hyp-msg", "");
+  }
+  function renderHypList() {
+    const hidden = hiddenNow();
+    $("hyp-list").innerHTML = state.hypotheses.length ? state.hypotheses.map((h) =>
+      `<div class="card"><button class="ghost" type="button" data-hyp="${esc(h.id)}">${esc(h.statement.slice(0, 90))}</button>
+        <div class="note">Status: ${esc(h.status)} · confidence ${esc(h.confidence)}</div>
+        <div class="note">${h.predictionsLockedAt ? "Predictions locked " + esc(new Date(h.predictionsLockedAt).toLocaleString()) : "Predictions not locked yet"}</div>
+        ${h.blindFolios.length ? `<div class="note">Blind folios: ${h.blindFolios.map((f) => esc(f) + (h.revealedAt ? " (revealed)" : hidden.has(f) ? " (hidden)" : "")).join(", ")}</div>` : ""}
+      </div>`).join("") : `<p class="note">No hypotheses yet.</p>`;
+  }
+  $("hyp-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    try {
+      const prior = state.hypotheses.find((h) => h.id === editingHyp);
+      const locked = !!(prior && prior.predictionsLockedAt);
+      // Once locked, predictions and blind folios cannot change.
+      const rec = L.cleanHypothesis({ id: editingHyp || undefined, statement: $("h-stmt").value, status: $("h-status").value,
+        confidence: $("h-conf").value, folios: listOf($("h-folios").value), blindFolios: locked ? prior.blindFolios : listOf($("h-blind").value),
+        predictions: locked ? prior.predictions : $("h-pred").value, predictionsLockedAt: prior ? prior.predictionsLockedAt : null,
+        revealedAt: prior ? prior.revealedAt : null, supporting: $("h-sup").value, contradicting: $("h-con").value,
+        testResults: $("h-res").value, notes: $("h-notes").value, dateAdded: prior ? prior.dateAdded : now(), dateEdited: now() });
+      state.hypotheses = prior ? state.hypotheses.map((h) => (h.id === prior.id ? rec : h)) : state.hypotheses.concat([rec]);
+      save(); fillHyp(rec); flash("hyp-msg", locked ? "Saved. Predictions were already locked, so they and the blind folios are unchanged." : "Hypothesis saved.");
+      renderDash();
+    } catch (err) { flash("hyp-msg", err.message, true); }
+  });
+  $("h-lock").addEventListener("click", () => {
+    const prior = state.hypotheses.find((h) => h.id === editingHyp);
+    if (!prior) return flash("hyp-msg", "Save the hypothesis before locking its predictions.", true);
+    try {
+      const withText = { ...prior, predictions: $("h-pred").value };
+      const locked = L.lockPredictions(withText);
+      state.hypotheses = state.hypotheses.map((h) => (h.id === prior.id ? locked : h)); save(); fillHyp(locked);
+      flash("hyp-msg", "Predictions locked. They can no longer be edited.");
+    } catch (err) { flash("hyp-msg", err.message, true); }
+  });
+  $("h-reveal").addEventListener("click", () => {
+    const prior = state.hypotheses.find((h) => h.id === editingHyp);
+    if (!prior) return flash("hyp-msg", "Save and lock the hypothesis first.", true);
+    if (!confirm("Reveal the blind folios? Their drawing descriptions will appear in the Folio Explorer and the report. Compare them with your locked predictions first.")) return;
+    try {
+      const revealed = L.revealBlind(prior);
+      state.hypotheses = state.hypotheses.map((h) => (h.id === prior.id ? revealed : h)); save(); fillHyp(revealed);
+      flash("hyp-msg", "Revealed. Record the comparison in Test results, then in Supporting or Contradicting observations.");
+    } catch (err) { flash("hyp-msg", err.message, true); }
+  });
+  $("h-new").addEventListener("click", () => fillHyp(null));
+  $("h-del").addEventListener("click", () => {
+    const h = state.hypotheses.find((x) => x.id === editingHyp); if (!h) return fillHyp(null);
+    if (!confirm("Delete this hypothesis and its predictions?")) return;
+    state.hypotheses = state.hypotheses.filter((x) => x.id !== h.id); save(); fillHyp(null); renderDash();
+  });
+  $("hyp-list").addEventListener("click", (e) => {
+    const id = e.target.dataset.hyp; if (!id) return;
+    fillHyp(state.hypotheses.find((h) => h.id === id));
+  });
+
+  // ---- stage 2: data helpers
+  const PLANT_COLUMNS = ["folio", "illustration", "root", "stem", "leaf", "flowerFruit", "identification", "alternatives", "references", "confidence", "notes"];
+  $("x-report").addEventListener("click", () => { download("voynich-report-" + stamp() + ".txt", L.buildReport(state), "text/plain"); flash("x-msg", "Report downloaded. Hidden blind-test descriptions are left out."); });
+  $("x-plant-csv").addEventListener("click", () => { download("voynich-plants-" + stamp() + ".csv", L.toCSV(state.plants, PLANT_COLUMNS), "text/csv"); flash("x-msg", "Plant CSV downloaded."); });
 
   // ---- start
   setStoreNote();
   try { const s = localStorage.getItem(SAMPLE_KEY); if (s) $("an-src").value = s; } catch (e) {}
   if (!$("an-src").value) $("an-src").value = "# Illustrative only, not a manuscript transcription. Paste your own EVA here.\ndaiin.chedy.qokedy shedy.daiin";
   renderRules(); renderFolioTable(); renderAnalysis(); renderDash();
+  fillPlant(null); fillSymbol(null); fillHyp(null); renderTranslations(); renderPatternSelects();
 })();
 </script>
 </body>

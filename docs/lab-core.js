@@ -10,6 +10,15 @@
     "Seasonal timing", "Water or bathing", "Alchemy", "Unknown", "Other"];
   const CONFIDENCE = ["low", "medium", "high"];
   const STATUS = ["unreviewed", "in progress", "tested", "rejected"];
+  const SYMBOL_KINDS = ["zodiac", "celestial", "diagram", "numerical", "other"];
+  const ASSOCIATIONS = ["visible", "documented", "hypothesis"];
+  const CLAIM_KINDS = ["historical claim", "modern claim", "hypothesis"];
+  const HYP_STATUS = ["untested", "under investigation", "supported by test", "not supported by test"];
+  // Every kind of record the backup file holds, in the order they are listed.
+  const KINDS = ["folios", "rules", "plants", "symbols", "translations", "hypotheses"];
+  // Folio fields that describe what is drawn on the page. A blind test hides these.
+  const VISUAL_FOLIO_FIELDS = ["illustration", "botany", "figures", "astronomy"];
+  const PLANT_VISUAL_FIELDS = ["illustration", "root", "stem", "leaf", "flowerFruit"];
   const SCHEMA = 1;
 
   // ---------- Text analysis ----------
@@ -92,7 +101,7 @@
   function ngrams(text, n, opts) {
     const lines = tokenize(text, opts);
     const found = new Map();
-    lines.forEach((line, li) => line.words.forEach((w, wi) => {
+    lines.forEach((line, li) => line.words.forEach((w) => {
       for (let p = 0; p + n <= w.length; p++) {
         const g = w.slice(p, p + n);
         if (!found.has(g)) found.set(g, { text: g, count: 0, locations: [] });
@@ -115,6 +124,70 @@
     lines.forEach((line, li) => line.words.forEach((w, wi) => {
       if (whole ? w === q : w.includes(q)) hits.push({ line: li, locus: line.locus, wordIndex: wi, word: w });
     }));
+    return hits;
+  }
+
+  // Word-length distribution: how many words have each length.
+  function wordLengthDistribution(text, opts) {
+    const words = tokenize(text, opts).flatMap((l) => l.words);
+    const m = countBy(words, (w) => w.length);
+    return [...m.entries()].sort((a, b) => a[0] - b[0]).map(([length, count]) => ({ length, count }));
+  }
+
+  // Which characters occur at each position counted from the start and from
+  // the end of words, for positions 1..maxPos.
+  function positionFrequencies(text, opts, maxPos) {
+    const n = maxPos || 3;
+    const words = tokenize(text, opts).flatMap((l) => l.words);
+    const start = {}, end = {};
+    for (let p = 1; p <= n; p++) {
+      const long = words.filter((w) => w.length >= p);
+      start[p] = sortedEntries(countBy(long, (w) => w[p - 1]), 10);
+      end[p] = sortedEntries(countBy(long, (w) => w[w.length - p]), 10);
+    }
+    return { start, end };
+  }
+
+  // Runs of n consecutive words, within each line, with where they occur.
+  function tokenNgrams(text, n, opts) {
+    const lines = tokenize(text, opts);
+    const found = new Map();
+    lines.forEach((line, li) => {
+      for (let i = 0; i + n <= line.words.length; i++) {
+        const g = line.words.slice(i, i + n).join(" ");
+        if (!found.has(g)) found.set(g, { text: g, count: 0, locations: [] });
+        const e = found.get(g);
+        e.count++;
+        if (e.locations.length < 50) e.locations.push({ line: li, locus: line.locus, index: i });
+      }
+    });
+    return [...found.values()].filter((e) => e.count > 1).sort((a, b) => b.count - a.count || (a.text < b.text ? -1 : 1));
+  }
+
+  // Compares two passages by the words and word pairs they share. Shared
+  // vocabulary is a computational observation. It does not show that the two
+  // passages mean the same thing.
+  function compareTexts(a, b, opts) {
+    const wa = tokenize(a, opts).flatMap((l) => l.words);
+    const wb = tokenize(b, opts).flatMap((l) => l.words);
+    const sa = new Set(wa), sb = new Set(wb);
+    const shared = [...sa].filter((w) => sb.has(w));
+    const union = new Set([...sa, ...sb]).size;
+    const pairs = (ws) => new Set(ws.slice(1).map((w, i) => ws[i] + " " + w));
+    const pa = pairs(wa), pb = pairs(wb);
+    const sharedPairs = [...pa].filter((x) => pb.has(x));
+    return {
+      wordsA: wa.length, wordsB: wb.length, distinctA: sa.size, distinctB: sb.size,
+      sharedWords: shared.length, jaccard: union ? shared.length / union : 0,
+      sharedWordList: shared.slice(0, 50), sharedPairs: sharedPairs.slice(0, 50),
+      note: "Computational observation only. Shared words do not show that the passages mean the same thing.",
+    };
+  }
+
+  // Searches the transcriptions of several folio records for one sequence.
+  function crossFolioSearch(folios, query, opts) {
+    const hits = [];
+    for (const f of folios) for (const h of search(f.transcription, query, opts)) hits.push({ folio: f.folio, id: f.id, ...h });
     return hits;
   }
 
@@ -175,6 +248,15 @@
     return { tokens, untouched, partial };
   }
 
+  // The rule ids that actually produced output for a passage, in first-use order.
+  function rulesUsed(text, rules, opts) {
+    const ids = [];
+    for (const line of applyLiteral(text, rules, opts)) for (const t of line.tokens) for (const p of t.pieces) {
+      if (p.rule && !ids.includes(p.rule)) ids.push(p.rule);
+    }
+    return ids;
+  }
+
   // ---------- Mode B: pattern exploration ----------
 
   // Shows recurring sequences with counts and locations. Carries no meanings.
@@ -191,84 +273,203 @@
   function newId(prefix) {
     return prefix + "-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
   }
+  const str = (v) => (v == null ? "" : String(v));
+  const strList = (v) => (Array.isArray(v) ? v.map((x) => str(x).trim()).filter(Boolean) : []);
+  const nowIso = () => new Date().toISOString();
 
   // Keeps only the fields the lab knows about, with a default for each.
   // Throws a readable message for anything malformed.
   function cleanFolio(f) {
     if (!f || typeof f !== "object") throw new Error("A folio record must be an object.");
-    const folio = String(f.folio || "").trim();
+    const folio = str(f.folio).trim();
     if (!folio) throw new Error("Each folio record needs a folio identifier, such as f78r.");
-    const confidence = CONFIDENCE.includes(f.confidence) ? f.confidence : "low";
-    const status = STATUS.includes(f.status) ? f.status : "unreviewed";
-    const text = (k) => String(f[k] == null ? "" : f[k]);
-    const related = Array.isArray(f.related) ? f.related.filter((r) => r && r.folio && r.reason).map((r) => ({ folio: String(r.folio), reason: String(r.reason) })) : [];
-    return {
-      id: String(f.id || newId("folio")),
-      folio, section: text("section"), transcription: text("transcription"),
-      illustration: text("illustration"), botany: text("botany"), figures: text("figures"), astronomy: text("astronomy"),
-      interpretation: text("interpretation"), alternatives: text("alternatives"),
-      evidenceFor: text("evidenceFor"), evidenceAgainst: text("evidenceAgainst"), sources: text("sources"),
-      confidence, status, related, notes: text("notes"),
-      dateAdded: String(f.dateAdded || new Date().toISOString()),
-      dateEdited: String(f.dateEdited || f.dateAdded || new Date().toISOString()),
+    const related = Array.isArray(f.related) ? f.related.filter((r) => r && r.folio && r.reason).map((r) => ({ folio: str(r.folio), reason: str(r.reason) })) : [];
+    const rec = {
+      id: str(f.id) || newId("folio"), folio,
+      confidence: CONFIDENCE.includes(f.confidence) ? f.confidence : "low",
+      status: STATUS.includes(f.status) ? f.status : "unreviewed",
+      related,
+      dateAdded: str(f.dateAdded) || nowIso(), dateEdited: str(f.dateEdited) || str(f.dateAdded) || nowIso(),
     };
+    for (const k of ["section", "transcription", "illustration", "botany", "figures", "astronomy", "interpretation",
+      "alternatives", "evidenceFor", "evidenceAgainst", "sources", "notes"]) rec[k] = str(f[k]);
+    return rec;
   }
 
   // Keeps only the fields the lab knows about. Source and meaning are required.
   function cleanRule(r) {
     if (!r || typeof r !== "object") throw new Error("A cipher rule must be an object.");
-    const source = String(r.source || "").trim();
-    const meaning = String(r.meaning || "").trim();
+    const source = str(r.source).trim();
+    const meaning = str(r.meaning).trim();
     if (!source) throw new Error("Each cipher rule needs an EVA source, such as daiin.");
     if (!meaning) throw new Error("Each cipher rule needs a proposed meaning.");
-    const type = r.type === "word" ? "word" : "sequence";
-    const category = CATEGORIES.includes(r.category) ? r.category : "Unknown";
-    const confidence = CONFIDENCE.includes(r.confidence) ? r.confidence : "low";
     return {
-      id: String(r.id || newId("rule")),
-      type, source, meaning, category, confidence,
-      explanation: String(r.explanation || ""), evidence: String(r.evidence || ""),
-      folio: String(r.folio || ""), notes: String(r.notes || ""),
-      dateAdded: String(r.dateAdded || new Date().toISOString()),
+      id: str(r.id) || newId("rule"),
+      type: r.type === "word" ? "word" : "sequence", source, meaning,
+      category: CATEGORIES.includes(r.category) ? r.category : "Unknown",
+      confidence: CONFIDENCE.includes(r.confidence) ? r.confidence : "low",
+      explanation: str(r.explanation), evidence: str(r.evidence), folio: str(r.folio), notes: str(r.notes),
+      dateAdded: str(r.dateAdded) || nowIso(),
     };
+  }
+
+  // A plant's appearance, its proposed identification, and any medicinal
+  // claim are stored in separate fields. Every medicinal claim needs a source,
+  // and the lab does not write treatment advice.
+  function cleanPlant(p) {
+    if (!p || typeof p !== "object") throw new Error("A plant record must be an object.");
+    const folio = str(p.folio).trim();
+    if (!folio) throw new Error("Each plant record needs a folio identifier.");
+    const medicinalClaims = (Array.isArray(p.medicinalClaims) ? p.medicinalClaims : []).map((c) => {
+      const claim = str(c && c.claim).trim();
+      if (!claim) return null;
+      const source = str(c.source).trim();
+      if (!source) throw new Error("A medicinal claim needs its source. Write 'none found' if you have not located one.");
+      return { claim, source, kind: CLAIM_KINDS.includes(c.kind) ? c.kind : "hypothesis" };
+    }).filter(Boolean);
+    const rec = {
+      id: str(p.id) || newId("plant"), folio, medicinalClaims,
+      confidence: CONFIDENCE.includes(p.confidence) ? p.confidence : "low",
+      dateAdded: str(p.dateAdded) || nowIso(), dateEdited: str(p.dateEdited) || str(p.dateAdded) || nowIso(),
+    };
+    for (const k of ["illustration", "root", "stem", "leaf", "flowerFruit", "identification", "alternatives", "references", "notes"]) rec[k] = str(p[k]);
+    return rec;
+  }
+
+  // A symbol (zodiac sign, star, diagram, number pattern) linked to folios.
+  // The association says whether it is visible, documented, or a hypothesis.
+  function cleanSymbol(s) {
+    if (!s || typeof s !== "object") throw new Error("A symbol record must be an object.");
+    const name = str(s.name).trim();
+    if (!name) throw new Error("Each symbol needs a name.");
+    return {
+      id: str(s.id) || newId("symbol"), name,
+      kind: SYMBOL_KINDS.includes(s.kind) ? s.kind : "other",
+      association: ASSOCIATIONS.includes(s.association) ? s.association : "hypothesis",
+      folios: strList(s.folios), description: str(s.description), notes: str(s.notes),
+      dateAdded: str(s.dateAdded) || nowIso(),
+    };
+  }
+
+  // A proposed translation of one exact passage. It is always labelled as a
+  // hypothesis, and it keeps the rule ids used to produce it.
+  function cleanTranslation(t) {
+    if (!t || typeof t !== "object") throw new Error("A translation record must be an object.");
+    const passage = str(t.passage);
+    if (!passage.trim()) throw new Error("Each translation needs the exact EVA passage it translates.");
+    const interpretation = str(t.interpretation).trim();
+    if (!interpretation) throw new Error("Write the interpretation. It will be labelled as a hypothesis.");
+    return {
+      id: str(t.id) || newId("translation"), passage, folio: str(t.folio), rules: strList(t.rules),
+      interpretation, alternatives: str(t.alternatives),
+      confidence: CONFIDENCE.includes(t.confidence) ? t.confidence : "low",
+      evidenceFor: str(t.evidenceFor), evidenceAgainst: str(t.evidenceAgainst),
+      dateAdded: str(t.dateAdded) || nowIso(),
+    };
+  }
+
+  // A research hypothesis. Predictions are locked before any blind folio is
+  // revealed, so the comparison cannot be written after seeing the answer.
+  function cleanHypothesis(h) {
+    if (!h || typeof h !== "object") throw new Error("A hypothesis record must be an object.");
+    const statement = str(h.statement).trim();
+    if (!statement) throw new Error("Each hypothesis needs a statement.");
+    return {
+      id: str(h.id) || newId("hyp"), statement,
+      status: HYP_STATUS.includes(h.status) ? h.status : "untested",
+      confidence: CONFIDENCE.includes(h.confidence) ? h.confidence : "low",
+      folios: strList(h.folios), blindFolios: strList(h.blindFolios),
+      predictions: str(h.predictions), predictionsLockedAt: h.predictionsLockedAt ? str(h.predictionsLockedAt) : null,
+      revealedAt: h.revealedAt ? str(h.revealedAt) : null,
+      supporting: str(h.supporting), contradicting: str(h.contradicting), testResults: str(h.testResults), notes: str(h.notes),
+      dateAdded: str(h.dateAdded) || nowIso(), dateEdited: str(h.dateEdited) || str(h.dateAdded) || nowIso(),
+    };
+  }
+
+  // ---------- Blind testing ----------
+
+  // Locks the predictions. After this the predictions text cannot be edited.
+  function lockPredictions(h, at) {
+    if (h.predictionsLockedAt) throw new Error("These predictions are already locked.");
+    if (!h.predictions.trim()) throw new Error("Write your predictions before locking them.");
+    return { ...h, predictionsLockedAt: at || nowIso() };
+  }
+
+  // Reveals the blind folios. Only allowed after the predictions are locked.
+  function revealBlind(h, at) {
+    if (!h.predictionsLockedAt) throw new Error("Lock your predictions before revealing the blind folios.");
+    if (!h.blindFolios.length) throw new Error("This hypothesis has no blind folios to reveal.");
+    return { ...h, revealedAt: at || nowIso() };
+  }
+
+  // Folio identifiers whose drawing descriptions are hidden right now. A folio
+  // stays hidden while any hypothesis that blinds it has not been revealed.
+  function hiddenFolioIds(hypotheses) {
+    const hidden = new Set();
+    for (const h of hypotheses || []) {
+      if (h.revealedAt) continue;
+      for (const f of h.blindFolios) hidden.add(f);
+    }
+    return hidden;
   }
 
   // ---------- Import, export, validation ----------
 
+  const CLEANERS = { folios: cleanFolio, rules: cleanRule, plants: cleanPlant, symbols: cleanSymbol, translations: cleanTranslation, hypotheses: cleanHypothesis };
+
+  function emptyState() {
+    const s = {};
+    for (const k of KINDS) s[k] = [];
+    return s;
+  }
+
+  // Fills in any list a caller left out, so older state objects still work.
+  function withDefaults(state) {
+    const s = { ...emptyState(), ...(state || {}) };
+    for (const k of KINDS) if (!Array.isArray(s[k])) s[k] = [];
+    return s;
+  }
+
   // Checks a backup file before anything is loaded. Returns the cleaned
-  // records, or the errors found. Nothing is written by this function.
+  // records, or the errors found. Nothing is written by this function. Kinds
+  // missing from an older backup are read as empty.
   function validateBackup(obj) {
-    const errors = [];
     if (!obj || typeof obj !== "object" || Array.isArray(obj)) return { ok: false, errors: ["The file is not a lab backup object."] };
+    const errors = [];
     if (obj.schema !== undefined && obj.schema !== SCHEMA) errors.push("Unknown backup schema " + obj.schema + "; expected " + SCHEMA + ".");
-    const folios = [], rules = [];
-    (Array.isArray(obj.folios) ? obj.folios : []).forEach((f, i) => {
-      try { folios.push(cleanFolio(f)); } catch (e) { errors.push("folios[" + i + "]: " + e.message); }
-    });
-    (Array.isArray(obj.rules) ? obj.rules : []).forEach((r, i) => {
-      try { rules.push(cleanRule(r)); } catch (e) { errors.push("rules[" + i + "]: " + e.message); }
-    });
-    if (obj.folios !== undefined && !Array.isArray(obj.folios)) errors.push("'folios' must be a list.");
-    if (obj.rules !== undefined && !Array.isArray(obj.rules)) errors.push("'rules' must be a list.");
+    const data = emptyState();
+    for (const kind of KINDS) {
+      if (obj[kind] === undefined) continue;
+      if (!Array.isArray(obj[kind])) { errors.push("'" + kind + "' must be a list."); continue; }
+      obj[kind].forEach((rec, i) => {
+        try { data[kind].push(CLEANERS[kind](rec)); } catch (e) { errors.push(kind + "[" + i + "]: " + e.message); }
+      });
+    }
     if (errors.length) return { ok: false, errors };
-    return { ok: true, data: { folios, rules } };
+    return { ok: true, data };
   }
 
   // Adds incoming records whose ids are not already in the library. Existing
   // records are never overwritten by this function; the caller decides on replace.
   function mergeNew(current, incoming) {
-    const ids = { folios: new Set(current.folios.map((f) => f.id)), rules: new Set(current.rules.map((r) => r.id)) };
-    const added = { folios: 0, rules: 0 }, skipped = { folios: 0, rules: 0 };
-    const next = { folios: current.folios.slice(), rules: current.rules.slice() };
-    for (const kind of ["folios", "rules"]) for (const rec of incoming[kind]) {
-      if (ids[kind].has(rec.id)) { skipped[kind]++; continue; }
-      ids[kind].add(rec.id); next[kind].push(rec); added[kind]++;
+    const next = {}, added = {}, skipped = {};
+    for (const kind of KINDS) {
+      const existing = current[kind] || [];
+      const have = new Set(existing.map((r) => r.id));
+      next[kind] = existing.slice();
+      added[kind] = 0; skipped[kind] = 0;
+      for (const rec of incoming[kind] || []) {
+        if (have.has(rec.id)) { skipped[kind]++; continue; }
+        have.add(rec.id); next[kind].push(rec); added[kind]++;
+      }
     }
     return { data: next, added, skipped };
   }
 
   function exportBackup(state) {
-    return JSON.stringify({ schema: SCHEMA, exportedAt: new Date().toISOString(), folios: state.folios, rules: state.rules }, null, 2);
+    const out = { schema: SCHEMA, exportedAt: nowIso() };
+    for (const k of KINDS) out[k] = state[k] || [];
+    return JSON.stringify(out, null, 2);
   }
 
   // Cells that start with a formula character are prefixed so spreadsheets
@@ -285,22 +486,109 @@
     "interpretation", "alternatives", "evidenceFor", "evidenceAgainst", "sources", "confidence", "status", "notes", "dateAdded", "dateEdited"];
   const RULE_COLUMNS = ["source", "type", "meaning", "category", "confidence", "explanation", "evidence", "folio", "notes", "dateAdded"];
 
+  // The research report as plain text. Every item carries a tag saying what
+  // kind of statement it is. Drawing descriptions of folios still hidden by a
+  // blind test are left out, so the report cannot bias a test in progress.
+  function buildReport(input, opts) {
+    const state = withDefaults(input);
+    const hidden = hiddenFolioIds(state.hypotheses);
+    const L = [];
+    const add = (...lines) => L.push(...lines);
+    add("VOYNICH CIPHER LAB: RESEARCH REPORT", "Generated " + nowIso(), "",
+      "The Voynich Manuscript has not been deciphered. Nothing below is a translation.",
+      "Tags: [OBSERVED] text or description you entered; [COMPUTED] counts from the text;",
+      "[RULE] output of your literal cipher rules; [HYPOTHESIS] your proposal; [CLAIM] an outside claim, with its source.", "");
+    add("== FOLIOS ==");
+    for (const f of state.folios) {
+      add("", "[OBSERVED] " + f.folio + (f.section ? " (" + f.section + ")" : ""));
+      if (f.transcription) add("  EVA: " + f.transcription.replace(/\n/g, " / "));
+      if (hidden.has(f.folio)) add("  Drawing descriptions hidden by a blind test until it is revealed.");
+      else for (const k of VISUAL_FOLIO_FIELDS) if (f[k]) add("  [OBSERVED] " + k + ": " + f[k]);
+      if (f.interpretation) add("  [HYPOTHESIS] " + f.interpretation);
+      if (f.alternatives) add("  [HYPOTHESIS] alternatives: " + f.alternatives);
+      if (f.evidenceFor) add("  Evidence for: " + f.evidenceFor);
+      if (f.evidenceAgainst) add("  Evidence against: " + f.evidenceAgainst);
+      if (f.sources) add("  Sources: " + f.sources);
+      add("  Confidence: " + f.confidence + "; status: " + f.status);
+      for (const r of f.related) add("  Related to " + r.folio + ": " + r.reason + " (your reason, not a proven link)");
+    }
+    add("", "== CIPHER RULES ==");
+    for (const r of state.rules) add("[HYPOTHESIS] " + r.source + " = " + r.meaning + " (" + r.type + ", " + r.category + ", confidence " + r.confidence + ")" + (r.folio ? " from " + r.folio : ""));
+    add("", "== PLANTS ==");
+    for (const p of state.plants) {
+      add("", "[OBSERVED] " + p.folio);
+      if (hidden.has(p.folio)) add("  Appearance hidden by a blind test until it is revealed.");
+      else for (const k of PLANT_VISUAL_FIELDS) if (p[k]) add("  [OBSERVED] " + k + ": " + p[k]);
+      if (p.identification) add("  [HYPOTHESIS] possible identification: " + p.identification);
+      if (p.alternatives) add("  [HYPOTHESIS] alternatives: " + p.alternatives);
+      for (const c of p.medicinalClaims) add("  [CLAIM] (" + c.kind + ") " + c.claim + " Source: " + c.source);
+      add("  Confidence: " + p.confidence);
+    }
+    add("", "== SYMBOLS ==");
+    for (const s of state.symbols) {
+      const hide = s.folios.some((f) => hidden.has(f));
+      add("", "[" + s.association.toUpperCase() + "] " + s.name + " (" + s.kind + ") in " + (s.folios.join(", ") || "no folio"));
+      if (s.description && !hide) add("  " + s.description);
+      if (hide) add("  Description hidden by a blind test until it is revealed.");
+    }
+    add("", "== TRANSLATIONS (HYPOTHESES ONLY) ==");
+    for (const t of state.translations) {
+      add("", "[HYPOTHESIS] passage: " + t.passage.replace(/\n/g, " / "));
+      if (t.rules.length) add("  Rules used: " + t.rules.join(", "));
+      add("  Interpretation: " + t.interpretation, "  Confidence: " + t.confidence);
+      if (t.alternatives) add("  Alternatives: " + t.alternatives);
+      if (t.evidenceFor) add("  Evidence for: " + t.evidenceFor);
+      if (t.evidenceAgainst) add("  Evidence against: " + t.evidenceAgainst);
+    }
+    add("", "== HYPOTHESES ==");
+    for (const h of state.hypotheses) {
+      add("", "[HYPOTHESIS] " + h.statement, "  Status: " + h.status + "; confidence: " + h.confidence);
+      if (h.predictionsLockedAt) add("  Predictions locked " + h.predictionsLockedAt + ":", "  " + h.predictions.replace(/\n/g, " / "));
+      else add("  Predictions not yet locked (" + (h.predictions ? "draft" : "none") + ").");
+      if (h.blindFolios.length) add("  Blind folios: " + h.blindFolios.join(", ") + (h.revealedAt ? " (revealed " + h.revealedAt + ")" : " (not yet revealed)"));
+      if (h.supporting) add("  Supporting observations: " + h.supporting);
+      if (h.contradicting) add("  Contradicting observations: " + h.contradicting);
+      if (h.testResults) add("  Test results: " + h.testResults);
+    }
+    add("", "== LIMITS ==",
+      "Only the text entered in this lab was analysed. No complete corpus is loaded.",
+      "Repeated sequences and shared vocabulary are computational observations, not translations.",
+      "Confidence and status are your own ratings.");
+    return L.join("\n") + "\n";
+  }
+
   // Summary numbers for the dashboard.
-  function dashboard(state, sampleText, opts) {
-    const items = state.folios.map((f) => ({ label: "Folio " + f.folio, when: f.dateEdited || f.dateAdded }))
-      .concat(state.rules.map((r) => ({ label: "Rule " + r.source, when: r.dateAdded })));
+  function dashboard(input, sampleText, opts) {
+    const state = withDefaults(input);
+    const items = []
+      .concat(state.folios.map((f) => ({ label: "Folio " + f.folio, when: f.dateEdited || f.dateAdded })))
+      .concat(state.rules.map((r) => ({ label: "Rule " + r.source, when: r.dateAdded })))
+      .concat(state.plants.map((p) => ({ label: "Plant on " + p.folio, when: p.dateEdited || p.dateAdded })))
+      .concat(state.symbols.map((s) => ({ label: "Symbol " + s.name, when: s.dateAdded })))
+      .concat(state.translations.map((t) => ({ label: "Translation of " + t.passage.slice(0, 24), when: t.dateAdded })))
+      .concat(state.hypotheses.map((h) => ({ label: "Hypothesis " + h.statement.slice(0, 32), when: h.dateEdited || h.dateAdded })));
     items.sort((a, b) => (a.when < b.when ? 1 : -1));
     return {
       folios: state.folios.length,
       rules: state.rules.length,
+      plants: state.plants.length,
+      symbols: state.symbols.length,
+      translations: state.translations.length,
+      hypotheses: state.hypotheses.length,
       unmapped: sampleText ? unmappedSummary(sampleText, state.rules, opts) : null,
       recent: items.slice(0, 5),
     };
   }
 
-  const api = { CATEGORIES, CONFIDENCE, STATUS, tokenize, analyzeText, ngrams, search, applyLiteral, unmappedSummary,
-    patternExplore, cleanFolio, cleanRule, validateBackup, mergeNew, exportBackup, toCSV, csvCell,
-    FOLIO_COLUMNS, RULE_COLUMNS, dashboard, newId };
+  const api = {
+    CATEGORIES, CONFIDENCE, STATUS, SYMBOL_KINDS, ASSOCIATIONS, CLAIM_KINDS, HYP_STATUS, KINDS, VISUAL_FOLIO_FIELDS, PLANT_VISUAL_FIELDS,
+    tokenize, analyzeText, ngrams, search, applyLiteral, unmappedSummary, rulesUsed, patternExplore,
+    wordLengthDistribution, positionFrequencies, tokenNgrams, compareTexts, crossFolioSearch,
+    cleanFolio, cleanRule, cleanPlant, cleanSymbol, cleanTranslation, cleanHypothesis,
+    lockPredictions, revealBlind, hiddenFolioIds, emptyState,
+    validateBackup, mergeNew, exportBackup, toCSV, csvCell, FOLIO_COLUMNS, RULE_COLUMNS,
+    buildReport, dashboard, newId,
+  };
   if (typeof module !== "undefined") module.exports = api;
   else root.VoynichLab = api;
 })(this);
