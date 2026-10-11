@@ -66,6 +66,17 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
 .mono { font-family: var(--mono); font-size: .85rem; overflow-wrap: anywhere; }
 .check { display: flex; gap: 6px; align-items: center; text-transform: none; letter-spacing: 0; font-size: .9rem; color: var(--ink); }
 .del { font: inherit; font-size: .8rem; background: none; border: 0; color: var(--muted); cursor: pointer; text-decoration: underline; }
+.entry { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+@media (max-width: 640px) { .entry { grid-template-columns: minmax(0, 1fr); } }
+.entry img { align-self: start; width: 100%; border-radius: 4px; border: 1px solid var(--line); }
+.entry .body { display: grid; gap: 10px; min-width: 0; }
+.entry h3 { font-family: var(--display); font-size: 1.15rem; margin: 0; }
+.entry dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: .9rem; }
+.entry dt { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; padding-top: 2px; }
+.entry dd { margin: 0; }
+.entry .eyebrow { display: block; margin-bottom: 2px; }
+.entry ul { margin: 0; padding-left: 1.1rem; display: grid; gap: 4px; font-size: .9rem; }
+.thinking { color: var(--muted); font-style: italic; }
 </style>
 
 <div class="wrap">
@@ -104,6 +115,20 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
     </div>
   </section>
 
+
+
+  <section class="col" id="investigation">
+    <h2>Investigation log</h2>
+    <p class="lede">Upload a photo of a manuscript page. Claude describes what is visible (figures, hair, plants, pools, zodiac, any legible EVA), then applies your framework, labelled as interpretation. Every page and its analysis is saved here, so the investigation builds up over time.</p>
+    <form class="row" id="up-form">
+      <label for="up-folio">Folio, if known <input id="up-folio" placeholder="e.g. f78r"></label>
+      <label for="up-note" style="flex: 2 1 220px">Your note <input id="up-note" placeholder="what you want looked at"></label>
+      <label for="up-file">Photo <input type="file" id="up-file" accept="image/*" required></label>
+      <button class="act" type="submit" id="up-go">Upload and analyse</button>
+    </form>
+    <div class="msg" id="up-msg">Connecting to the saved log...</div>
+    <div class="col" id="entries"></div>
+  </section>
 
   <section class="col" id="heldout">
     <h2>Held-out folio test</h2>
@@ -285,6 +310,122 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
     if (logCol) logCol.doc(id).delete().catch((err) => { $("h-msg").textContent = "Not removed: " + err.message; });
     else { log = log.filter((o) => o.id !== id); saveLocal(); renderLog(); }
   });
+
+
+  // Investigation log: photo stored as an asset, analysis from Claude, both
+  // indexed in the "investigation" collection.
+  let assets = null, sampler = null, invCol = null, entries = [], confirming = null;
+  const ERR = { not_granted: "Claude wasn't allowed to look at images on this page. Allow it from the page's permissions to analyse photos.",
+    rate_limited: "Too many requests just now. Wait a minute, then press Analyse again.",
+    image_rejected: "That image couldn't be read. Try a JPEG or PNG under the size limit.",
+    invalid_json: "The analysis came back in an unexpected shape. Press Analyse again.",
+    refused: "Claude declined to analyse this image." };
+  const errText = (e) => ERR[e && e.code] || ("Something went wrong (" + ((e && (e.code || e.message)) || "unknown") + "). Try again.");
+  function li(items) { return items.length ? "<ul>" + items.join("") + "</ul>" : "<span class=\"src\">none noted</span>"; }
+  function renderEntries() {
+    if (!entries.length) { $("entries").innerHTML = "<p class=\"src\">No pages yet. Upload the first photo above, for example a bathing page such as f78r.</p>"; return; }
+    $("entries").innerHTML = entries.map((en) => {
+      const a = en.analysis ? R.normalizeAnalysis(en.analysis) : null;
+      const body = en.status === "analysing" ? "<p class=\"thinking\">Analysing the page. This can take up to a minute.</p>"
+        : en.status === "failed" ? `<p class="msg">${esc(en.error || "The analysis failed.")}</p>`
+        : a ? `
+          <p>${esc(a.summary || "")}</p>
+          <dl>
+            <dt>Section</dt><dd>${esc(a.section || "unknown")}</dd>
+            <dt>Layout</dt><dd>${esc(a.layout || "")}</dd>
+            <dt>Water</dt><dd>${esc(a.water || "none")}</dd>
+            <dt>Zodiac</dt><dd>${esc(a.zodiac.sign || "none")}${a.zodiac.evidence ? " · " + esc(a.zodiac.evidence) : ""}${a.zodiac.seasonUnderFramework ? " · framework season: " + esc(a.zodiac.seasonUnderFramework) : ""}</dd>
+            <dt>Visible text</dt><dd>${a.visibleText.eva ? `<span class="mono">${esc(a.visibleText.eva)}</span> · ` : ""}${esc(a.visibleText.notes || "")}</dd>
+            <dt>Colours</dt><dd>${esc(a.colours.join(", ") || "not noted")}</dd>
+            <dt>Confidence</dt><dd>${esc(a.confidence || "")}</dd>
+          </dl>
+          <div><span class="eyebrow">Figures</span>${li(a.figures.map((f) => `<li><b>${esc(f.position || "figure")}</b>: ${esc(f.hairColour || "?")} hair${f.humorUnderFramework ? " → " + esc(f.humorUnderFramework) + " (framework)" : ""}. ${esc(f.pose || "")} ${esc(f.details || "")}</li>`))}</div>
+          <div><span class="eyebrow">Plants</span>${li(a.plants.map((p) => `<li>${esc(p.description || "")}${p.themeUnderFramework && p.themeUnderFramework !== "none" ? ` · <b>framework theme: ${esc(p.themeUnderFramework)}</b>` : ""} ${esc(p.reasoning || "")}</li>`))}</div>
+          <div><span class="eyebrow">Next questions</span>${li(a.questions.map((q) => `<li>${esc(q)}</li>`))}</div>
+          <p class="src">Speculative. The manuscript is undeciphered; framework readings are interpretation, and nothing here is medical advice.</p>` : "";
+      const confirm = confirming === en.id
+        ? `<span class="src">Delete this page and its photo for good?</span> <button class="ghost" data-act="del-yes" data-id="${esc(en.id)}">Delete</button> <button class="del" data-act="del-no">Keep</button>`
+        : `<button class="del" data-act="del" data-id="${esc(en.id)}">Delete</button>`;
+      return `<article class="entry">
+        <img src="/_blob/${esc(en.imageId)}" alt="Photo of ${esc(en.folio || "a manuscript page")}" loading="lazy">
+        <div class="body">
+          <span class="eyebrow">${esc(new Date(en.createdAt).toLocaleString())}</span>
+          <h3>${esc(en.folio || "Unnumbered page")}</h3>
+          ${en.note ? `<p class="src">Your note: ${esc(en.note)}</p>` : ""}
+          ${body}
+          <div class="row">
+            ${sampler ? `<button class="ghost" data-act="analyse" data-id="${esc(en.id)}">${a ? "Analyse again" : "Analyse"}</button>` : ""}
+            ${a && a.figures.some((f) => data.hairHumors[(f.hairColour || "").toLowerCase()]) ? `<button class="ghost" data-act="tolog" data-id="${esc(en.id)}">Add figures to hair log</button>` : ""}
+            ${a && a.visibleText.eva ? `<button class="ghost" data-act="toreader" data-id="${esc(en.id)}">Read visible EVA</button>` : ""}
+            ${confirm}
+          </div>
+        </div></article>`;
+    }).join("");
+  }
+  async function analyse(en, file) {
+    const ref = invCol.doc(en.id);
+    await ref.update({ status: "analysing", error: null });
+    try {
+      const blob = file || await (await fetch("/_blob/" + en.imageId)).blob();
+      const result = await sampler.json(R.analysisPrompt(data, en.folio, en.note), { images: [blob], modelTier: "complex", cache: false });
+      await ref.update({ status: "done", analysis: R.normalizeAnalysis(result), analysedAt: Date.now() });
+    } catch (e) {
+      await ref.update({ status: "failed", error: errText(e) }).catch(() => {});
+    }
+  }
+  $("up-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const file = $("up-file").files[0];
+    if (!file || !assets || !invCol) return;
+    $("up-go").disabled = true; $("up-msg").textContent = "Uploading the photo...";
+    try {
+      const up = await assets.upload(file);
+      const en = { folio: $("up-folio").value.trim(), note: $("up-note").value.trim(), imageId: up.id, createdAt: Date.now(), status: sampler ? "analysing" : "uploaded" };
+      const ref = await invCol.add(en);
+      $("up-form").reset(); $("up-msg").textContent = sampler ? "Saved. Analysing now." : "Saved. Analysis isn't available in this view.";
+      if (sampler) analyse({ id: ref.id, ...en }, file);
+    } catch (err) {
+      $("up-msg").textContent = "The photo wasn't saved: " + (err.message || err.code) + ".";
+    } finally { $("up-go").disabled = false; }
+  });
+  $("entries").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    const en = entries.find((x) => x.id === b.dataset.id);
+    const act = b.dataset.act;
+    if (act === "del") { confirming = en.id; renderEntries(); }
+    else if (act === "del-no") { confirming = null; renderEntries(); }
+    else if (act === "del-yes") {
+      confirming = null;
+      invCol.doc(en.id).delete().then(() => assets && assets.delete(en.imageId)).catch((err) => { $("up-msg").textContent = "Not deleted: " + err.message; });
+    } else if (act === "analyse") analyse(en);
+    else if (act === "tolog") {
+      const a = R.normalizeAnalysis(en.analysis);
+      const figs = a.figures.filter((f) => data.hairHumors[(f.hairColour || "").toLowerCase()]);
+      for (const f of figs) {
+        const o = { folio: en.folio || "unknown", figure: f.position || "", hair: f.hairColour.toLowerCase(), contextHumor: "", blind: false, createdAt: Date.now() };
+        if (logCol) logCol.add(o); else { log.push({ id: String(Math.random()), ...o }); saveLocal(); renderLog(); }
+      }
+      $("up-msg").textContent = `Added ${figs.length} figure${figs.length === 1 ? "" : "s"} to the hair-colour log. Fill in what the context suggests there.`;
+    } else if (act === "toreader") {
+      $("folio").value = en.folio || ""; $("eva").value = R.normalizeAnalysis(en.analysis).visibleText.eva; render();
+      $("eva").scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  });
+  if (window.claude && window.claude.use) {
+    Promise.all([window.claude.use("db"), window.claude.use("assets"), window.claude.use("sample")]).then(async ([d, as, sm]) => {
+      if (!d) { $("investigation").hidden = true; return; }
+      assets = as;
+      if (sm) { const lim = await sm.limits().catch(() => null); if (lim && lim.images) { sampler = sm; $("up-file").accept = lim.images.mediaTypes.join(","); } }
+      if (!assets) $("up-form").hidden = true;
+      $("up-msg").textContent = !assets ? "You can read the log here, but only editors of this page can add photos."
+        : !sampler ? "Photos will be saved, but analysis isn't available in this view." : "";
+      invCol = d.collection("investigation");
+      invCol.orderBy("createdAt", "desc").onSnapshot((snap) => {
+        entries = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        renderEntries();
+      }, (e) => { $("up-msg").textContent = "The log stopped updating (" + e.code + "). Reload the page to reconnect."; });
+    });
+  } else { $("investigation").hidden = true; }
 
   const saved = load("cipher");
   $("cipher").value = saved || JSON.stringify(cipherOf(BASE), null, 2);

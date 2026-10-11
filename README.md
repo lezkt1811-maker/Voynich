@@ -34,6 +34,15 @@ node read.js folio.txt --folio f78r --zodiac pisces --hair black,red
 node read.js folio.txt --map my-cipher.json --json
 ```
 
+## Investigation log
+
+On the published page you can upload photos of manuscript pages. Each photo is
+saved, and Claude describes what is visible (figures, hair colour, plants,
+pools, zodiac, any legible EVA) and then applies the framework, labelled as
+interpretation. Figures can be sent to the hair-colour log and legible EVA to
+the reader. This needs the claude.ai page; a plain local copy of
+`docs/index.html` hides the section.
+
 ## Test the cipher
 
 Held-out folio test: build the cipher on one folio, then apply the same fixed

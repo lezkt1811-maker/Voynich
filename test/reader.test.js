@@ -52,3 +52,20 @@ test("hair consistency counts context matches and blind matches", () => {
   assert.strictEqual(black.blindMatches, 1);
   assert.deepStrictEqual(black.folios, ["f78r", "f79v", "f80r"]);
 });
+
+test("analysis prompt carries the framework and the safety rules", () => {
+  const p = R.analysisPrompt(DATA, "f78r", "green pools");
+  assert.match(p, /folio f78r/);
+  assert.match(p, /black = melancholic/);
+  assert.match(p, /never present anything as a translation/);
+  assert.match(p, /Never give medical advice/);
+});
+
+test("normalizeAnalysis keeps known fields and tolerates junk", () => {
+  const a = R.normalizeAnalysis({ summary: "s", figures: [{ hairColour: "red", extra: 1 }], plants: "nope", zodiac: null });
+  assert.strictEqual(a.summary, "s");
+  assert.deepStrictEqual(a.figures[0], { position: null, hairColour: "red", humorUnderFramework: null, pose: null, details: null });
+  assert.deepStrictEqual(a.plants, []);
+  assert.strictEqual(a.zodiac.sign, null);
+  assert.deepStrictEqual(R.normalizeAnalysis(null).questions, []);
+});

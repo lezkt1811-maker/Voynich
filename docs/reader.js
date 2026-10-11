@@ -184,6 +184,52 @@
     return Object.values(byHair).map((t) => ({ ...t, folios: [...t.folios] }));
   }
 
+
+  // Prompt for analysing an uploaded photo of a manuscript page. Asks for
+  // what is visible first, then the user's framework applied on top, with
+  // both kept apart.
+  function analysisPrompt(data, folio, note) {
+    const hair = Object.entries(data.hairHumors).map(([h, v]) => `${h} = ${v.humor} (${v.qualities.join(", ")})`).join("; ");
+    const zod = Object.entries(data.zodiac).map(([z, v]) => `${z} = ${v.season}`).join("; ");
+    return [
+      "The attached image is a photo of a page of the Voynich Manuscript (Beinecke MS 408)" + (folio ? `, said to be folio ${folio}` : "") + ".",
+      note ? "The researcher's note: " + note : "",
+      "Describe it in as much detail as the image allows, for an ongoing hobby investigation. Separate what is visible from interpretation.",
+      "Then apply the researcher's own speculative framework, labelled as such: hair colour gives a humor (" + hair + "); a zodiac sign gives the season a plant grows (" + zod + "); plants may relate to women's reproductive-health themes (fertility, contraception, fibroids, cysts, cramps).",
+      "Rules: the manuscript is undeciphered, so never present anything as a translation. Never give medical advice or say anything cures anything. If hair is uncoloured or the colour is unclear, say so rather than guessing. Transcribe visible script in EVA only where you can actually read the glyphs, otherwise null.",
+      "Reply with only a JSON object of this shape:",
+      JSON.stringify({
+        summary: "2-3 sentence overview",
+        section: "herbal | astronomical | zodiac | balneological | cosmological | pharmaceutical | recipes | unknown",
+        layout: "how the page is laid out: text blocks, drawings, borders, damage",
+        figures: [{ position: "where on the page", hairColour: "black | red | blonde | brown | uncoloured | unclear", humorUnderFramework: "humor or null", pose: "what the figure is doing", details: "crowns, objects, tubes, gestures" }],
+        plants: [{ description: "leaves, roots, flowers, colours", themeUnderFramework: "fertility | contraception | fibroids | cysts | cramps | none", reasoning: "why, under the framework" }],
+        water: "colour of pools or vessels, pipes, flow direction, or null",
+        zodiac: { sign: "sign or null", evidence: "what shows it", seasonUnderFramework: "season or null" },
+        visibleText: { eva: "EVA transcription of legible words or null", notes: "labels, paragraph count, legibility" },
+        colours: ["pigments used on the page"],
+        questions: ["things worth checking next in the investigation"],
+        confidence: "low | medium | high, with a reason",
+      }),
+    ].filter(Boolean).join("\n\n");
+  }
+
+  // Make a model reply safe to render: known fields only, arrays as arrays.
+  function normalizeAnalysis(a) {
+    a = a && typeof a === "object" ? a : {};
+    const str = (v) => (v == null ? null : String(v));
+    const arr = (v) => (Array.isArray(v) ? v : []);
+    return {
+      summary: str(a.summary), section: str(a.section), layout: str(a.layout), water: str(a.water), confidence: str(a.confidence),
+      figures: arr(a.figures).map((f) => ({ position: str(f && f.position), hairColour: str(f && f.hairColour), humorUnderFramework: str(f && f.humorUnderFramework), pose: str(f && f.pose), details: str(f && f.details) })),
+      plants: arr(a.plants).map((p) => ({ description: str(p && p.description), themeUnderFramework: str(p && p.themeUnderFramework), reasoning: str(p && p.reasoning) })),
+      zodiac: { sign: str(a.zodiac && a.zodiac.sign), evidence: str(a.zodiac && a.zodiac.evidence), seasonUnderFramework: str(a.zodiac && a.zodiac.seasonUnderFramework) },
+      visibleText: { eva: str(a.visibleText && a.visibleText.eva), notes: str(a.visibleText && a.visibleText.notes) },
+      colours: arr(a.colours).map(String),
+      questions: arr(a.questions).map(String),
+    };
+  }
+
   function formatText(r) {
     const out = [];
     out.push("SPECULATIVE READING" + (r.folio ? " of " + r.folio : "") + (r.section ? " (" + r.section + ")" : ""));
@@ -201,7 +247,7 @@
     return out.join("\n");
   }
 
-  const api = { read, formatText, heldOutTest, hairConsistency, cipherFingerprint, parseTranscription, annotateWord, sectionOf, DISCLAIMER, MEDICAL_NOTE, BATH_NOTE };
+  const api = { analysisPrompt, normalizeAnalysis, read, formatText, heldOutTest, hairConsistency, cipherFingerprint, parseTranscription, annotateWord, sectionOf, DISCLAIMER, MEDICAL_NOTE, BATH_NOTE };
   if (typeof module !== "undefined") module.exports = api;
   else root.VoynichReader = api;
 })(this);
