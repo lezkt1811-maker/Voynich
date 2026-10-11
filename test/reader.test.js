@@ -29,3 +29,26 @@ test("non-bathing folio has no bath note", () => {
   assert.strictEqual(r.section, "zodiac");
   assert.ok(!r.notes.includes(R.BATH_NOTE));
 });
+
+test("held-out test scores only words new to the test folio", () => {
+  const data = { ...DATA, evaPrefixes: {}, evaSuffixes: {}, evaWords: { daiin: { gloss: "a" }, ol: { gloss: "b" } } };
+  const r = R.heldOutTest("daiin chedy", "daiin ol okal", data);
+  assert.deepStrictEqual(r.newWords, { known: 1, total: 2, percent: 50, unread: ["okal"] });
+  assert.strictEqual(r.test.percent, 67);
+  assert.strictEqual(r.fingerprint, R.cipherFingerprint(data));
+});
+
+test("hair consistency counts context matches and blind matches", () => {
+  const rows = R.hairConsistency([
+    { folio: "f78r", hair: "black", contextHumor: "melancholic", blind: true },
+    { folio: "f79v", hair: "Black", contextHumor: "choleric", blind: false },
+    { folio: "f80r", hair: "black" },
+    { folio: "f80r", hair: "red", contextHumor: "choleric", blind: true },
+  ], DATA);
+  const black = rows.find((r) => r.hair === "black");
+  assert.strictEqual(black.seen, 3);
+  assert.strictEqual(black.withContext, 2);
+  assert.strictEqual(black.matches, 1);
+  assert.strictEqual(black.blindMatches, 1);
+  assert.deepStrictEqual(black.folios, ["f78r", "f79v", "f80r"]);
+});

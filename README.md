@@ -34,4 +34,24 @@ node read.js folio.txt --folio f78r --zodiac pisces --hair black,red
 node read.js folio.txt --map my-cipher.json --json
 ```
 
+## Test the cipher
+
+Held-out folio test: build the cipher on one folio, then apply the same fixed
+rules to a folio you did not use. The number that matters is how many words
+that appear only in the held-out folio the rules can still read. Each run
+prints a cipher code; a different code means the rules changed.
+
+```sh
+node read.js dev-folio.txt --test-on held-out-folio.txt --map my-cipher.json
+```
+
+Hair-colour log: for each figure, record the hair colour and what the
+surrounding page suggests on its own, and whether you noted that before
+checking the rule ("blind"). The page keeps this log; the CLI reads a JSON
+array of `{folio, figure, hair, contextHumor, blind}`:
+
+```sh
+node read.js --hair-log observations.json
+```
+
 Tests: `node --test test/*.test.js`

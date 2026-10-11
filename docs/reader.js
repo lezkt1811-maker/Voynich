@@ -119,6 +119,71 @@
     };
   }
 
+
+  // Short fingerprint of the cipher rules, so two runs can be checked for
+  // having used exactly the same rules.
+  function cipherFingerprint(data) {
+    const json = JSON.stringify([data.evaWords, data.evaPrefixes, data.evaSuffixes]);
+    let h = 2166136261;
+    for (let i = 0; i < json.length; i++) { h ^= json.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0).toString(16).padStart(8, "0");
+  }
+
+  function coverageOf(lines) {
+    let known = 0, total = 0;
+    for (const l of lines) for (const w of l.words) {
+      total++;
+      if (w.parts.every((p) => p.gloss !== "?")) known++;
+    }
+    return { known, total };
+  }
+
+  // Held-out test: the cipher is built on a development folio, then the same
+  // fixed rules are applied to a folio that was not used to build it. The
+  // telling number is how many words that appear only in the test folio the
+  // rules can still read.
+  function heldOutTest(devText, testText, data) {
+    const ann = (t) => parseTranscription(t).map((l) => ({ locus: l.locus, words: l.words.map((w) => annotateWord(w, data)) }));
+    const dev = ann(devText), test = ann(testText);
+    const devWords = new Set(dev.flatMap((l) => l.words.map((w) => w.word)));
+    const fresh = new Map();
+    for (const l of test) for (const w of l.words) if (!devWords.has(w.word)) fresh.set(w.word, w);
+    const freshKnown = [...fresh.values()].filter((w) => w.parts.every((p) => p.gloss !== "?")).length;
+    const pct = (a, b) => (b ? Math.round((100 * a) / b) : 0);
+    const devCov = coverageOf(dev), testCov = coverageOf(test);
+    return {
+      fingerprint: cipherFingerprint(data),
+      dev: { ...devCov, percent: pct(devCov.known, devCov.total) },
+      test: { ...testCov, percent: pct(testCov.known, testCov.total) },
+      newWords: { known: freshKnown, total: fresh.size, percent: pct(freshKnown, fresh.size),
+        unread: [...fresh.values()].filter((w) => w.parts.some((p) => p.gloss === "?")).map((w) => w.word) },
+      testLines: test,
+      notes: [DISCLAIMER, "Coverage only says the rules produce a gloss. Whether the glosses make sense as text is a separate check you have to read for."],
+    };
+  }
+
+  // Hair-colour log. Each observation: { folio, figure, hair, contextHumor, blind }
+  // contextHumor is what the surrounding page suggests on its own (a symbol, a
+  // plant, a zodiac sign), left blank when nothing does. blind means it was
+  // noted before looking up what the rule predicts.
+  function hairConsistency(observations, data) {
+    const byHair = {};
+    for (const o of observations) {
+      const hair = String(o.hair || "").toLowerCase();
+      if (!hair) continue;
+      const rule = data.hairHumors[hair];
+      const t = byHair[hair] || (byHair[hair] = { hair, predicted: rule ? rule.humor : "unmapped", seen: 0, withContext: 0, matches: 0, blindWithContext: 0, blindMatches: 0, folios: new Set() });
+      t.seen++;
+      if (o.folio) t.folios.add(o.folio);
+      const ctx = String(o.contextHumor || "").toLowerCase();
+      if (!ctx) continue;
+      const hit = rule && ctx === rule.humor;
+      t.withContext++; if (hit) t.matches++;
+      if (o.blind) { t.blindWithContext++; if (hit) t.blindMatches++; }
+    }
+    return Object.values(byHair).map((t) => ({ ...t, folios: [...t.folios] }));
+  }
+
   function formatText(r) {
     const out = [];
     out.push("SPECULATIVE READING" + (r.folio ? " of " + r.folio : "") + (r.section ? " (" + r.section + ")" : ""));
@@ -136,7 +201,7 @@
     return out.join("\n");
   }
 
-  const api = { read, formatText, parseTranscription, annotateWord, sectionOf, DISCLAIMER, MEDICAL_NOTE, BATH_NOTE };
+  const api = { read, formatText, heldOutTest, hairConsistency, cipherFingerprint, parseTranscription, annotateWord, sectionOf, DISCLAIMER, MEDICAL_NOTE, BATH_NOTE };
   if (typeof module !== "undefined") module.exports = api;
   else root.VoynichReader = api;
 })(this);

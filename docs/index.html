@@ -57,6 +57,15 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
 .src { color: var(--muted); font-size: .78rem; }
 #cipher { min-height: 14rem; }
 .msg { font-size: .85rem; color: var(--muted); min-height: 1.2em; }
+.stats { display: flex; flex-wrap: wrap; gap: 10px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; display: grid; gap: 2px; min-width: 9rem; flex: 1 1 9rem; }
+.stat b { font-family: var(--display); font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.stat.key { border-color: var(--pool); }
+.stat span { font-size: .8rem; color: var(--muted); }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 14px; }
+.mono { font-family: var(--mono); font-size: .85rem; overflow-wrap: anywhere; }
+.check { display: flex; gap: 6px; align-items: center; text-transform: none; letter-spacing: 0; font-size: .9rem; color: var(--ink); }
+.del { font: inherit; font-size: .8rem; background: none; border: 0; color: var(--muted); cursor: pointer; text-decoration: underline; }
 </style>
 
 <div class="wrap">
@@ -95,6 +104,34 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
     </div>
   </section>
 
+
+  <section class="col" id="heldout">
+    <h2>Held-out folio test</h2>
+    <p class="lede">Build your cipher on one folio, then run the same fixed rules on a folio you did not use to build it. If the rules only read the page they were built from, the score on new words drops. Note the cipher code: a different code means the rules changed between runs.</p>
+    <div class="pair">
+      <label for="dev">Development folio EVA (used to build the cipher)<textarea id="dev" spellcheck="false"></textarea></label>
+      <label for="held">Held-out folio EVA (not used to build it)<textarea id="held" spellcheck="false"></textarea></label>
+    </div>
+    <div class="row"><button class="act" id="run-test">Run the test</button></div>
+    <div id="test-out" class="col"></div>
+  </section>
+
+  <section class="col" id="hairlog">
+    <h2>Hair-colour log</h2>
+    <p class="lede">Record each figure's hair colour, and what the surrounding page suggests on its own (a symbol, a plant, the sign) if anything does. Tick "noted blind" when you wrote down the context before checking what the rule predicts. Blind agreements are the ones that count most.</p>
+    <form class="row" id="hair-form">
+      <label for="h-folio">Folio <input id="h-folio" value="f78r" required></label>
+      <label for="h-fig">Figure <input id="h-fig" placeholder="e.g. 3rd from left"></label>
+      <label for="h-hair">Hair <select id="h-hair"></select></label>
+      <label for="h-ctx">Context suggests <select id="h-ctx"><option value="">nothing clear</option><option>melancholic</option><option>choleric</option><option>phlegmatic</option><option>sanguine</option></select></label>
+      <label class="check" for="h-blind"><input type="checkbox" id="h-blind"> noted blind</label>
+      <button class="act" type="submit">Add</button>
+    </form>
+    <div class="msg" id="h-msg"></div>
+    <div class="tbl"><table id="t-cons"></table></div>
+    <div class="tbl"><table id="t-log"></table></div>
+  </section>
+
   <section class="col">
     <h2>Your cipher</h2>
     <p class="lede">Paste or edit your EVA mappings as JSON: <code>evaWords</code>, <code>evaPrefixes</code>, <code>evaSuffixes</code>, plus <code>hairHumors</code> if you change those rules. A word entry can carry a <code>category</code>: fertility, contraception, fibroids, cysts or cramps. The starting entries are format examples, not your cipher.</p>
@@ -130,7 +167,7 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
       for (const k of KEYS) if (m[k]) data[k] = m[k];
       store("cipher", json);
       if (!quiet) $("msg").textContent = "Cipher applied and saved in this browser.";
-      renderTables(); renderHair(); render();
+      renderTables(); renderHair(); render(); if (typeof renderLog === "function") { renderLog(); runTest(); }
     } catch (e) {
       $("msg").textContent = "That JSON did not parse: " + e.message + ". Fix it and apply again.";
     }
@@ -184,6 +221,69 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
     const t = $("cipher");
     navigator.clipboard.writeText(t.value).then(() => { $("msg").textContent = "Copied. Save it somewhere safe; this page only remembers it in this browser."; },
       () => { t.select(); $("msg").textContent = "Copy was blocked here. The JSON is selected; press Ctrl+C or Cmd+C."; });
+  });
+
+
+  // Held-out test
+  $("dev").value = "# Example only. Paste the folio you built the cipher on.\nqokedy.shedy.daiin.chedy";
+  $("held").value = "# Example only. Paste a folio you did not use.\nshedy.qokaiin.okal.daiin";
+  function runTest() {
+    const r = R.heldOutTest($("dev").value, $("held").value, data);
+    $("test-out").innerHTML = `
+      <div class="stats">
+        <div class="stat"><span>Development folio</span><b>${r.dev.percent}%</b><span>${r.dev.known} of ${r.dev.total} words read</span></div>
+        <div class="stat"><span>Held-out folio</span><b>${r.test.percent}%</b><span>${r.test.known} of ${r.test.total} words read</span></div>
+        <div class="stat key"><span>Words new to the held-out folio</span><b>${r.newWords.percent}%</b><span>${r.newWords.known} of ${r.newWords.total} read</span></div>
+        <div class="stat"><span>Cipher code</span><b class="mono">${esc(r.fingerprint)}</b><span>same code means same rules</span></div>
+      </div>
+      ${r.newWords.unread.length ? `<div><span class="eyebrow">Unread new words</span><div class="mono">${esc(r.newWords.unread.join(" "))}</div></div>` : ""}
+      <ul class="notes">${r.notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>`;
+  }
+  $("run-test").addEventListener("click", runTest);
+  runTest();
+
+  // Hair-colour log: kept in the page's shared store when available,
+  // otherwise only in this browser.
+  let log = [], db = null, logCol = null;
+  function renderLog() {
+    $("h-hair").innerHTML = Object.keys(data.hairHumors).map((h) => `<option>${esc(h)}</option>`).join("");
+    const rows = R.hairConsistency(log, data);
+    $("t-cons").innerHTML = rows.length
+      ? "<tr><th>Hair</th><th>Rule says</th><th>Seen</th><th>Context agrees</th><th>Blind agrees</th><th>Folios</th></tr>" +
+        rows.map((r) => `<tr><td>${esc(r.hair)}</td><td>${esc(r.predicted)}</td><td>${r.seen}</td><td>${r.matches} of ${r.withContext}</td><td>${r.blindMatches} of ${r.blindWithContext}</td><td class="src">${esc(r.folios.join(", "))}</td></tr>`).join("")
+      : "<tr><td class=\"src\">No figures logged yet. Add the first one above.</td></tr>";
+    $("t-log").innerHTML = log.length
+      ? "<tr><th>Folio</th><th>Figure</th><th>Hair</th><th>Context</th><th>Blind</th><th></th></tr>" +
+        log.map((o) => `<tr><td>${esc(o.folio)}</td><td>${esc(o.figure || "")}</td><td>${esc(o.hair)}</td><td>${esc(o.contextHumor || "nothing clear")}</td><td>${o.blind ? "yes" : "no"}</td><td><button class="del" type="button" data-id="${esc(o.id)}">Remove</button></td></tr>`).join("")
+      : "";
+  }
+  function saveLocal() { store("hairLog", JSON.stringify(log)); }
+  try { log = JSON.parse(load("hairLog") || "[]"); } catch (e) { log = []; }
+  $("h-msg").textContent = "Saving to this browser only until the shared log connects.";
+  renderLog();
+  if (window.claude && window.claude.use) {
+    window.claude.use("db").then((d) => {
+      if (!d) { $("h-msg").textContent = "The shared log is not available here, so entries stay in this browser only."; return; }
+      db = d; logCol = db.collection("hairLog");
+      logCol.orderBy("createdAt").onSnapshot((snap) => {
+        log = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        $("h-msg").textContent = "Entries are saved to the page's shared log.";
+        renderLog();
+      }, (e) => { $("h-msg").textContent = "The shared log stopped updating (" + e.code + "). Reload the page to reconnect."; });
+    });
+  }
+  $("hair-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const o = { folio: $("h-folio").value.trim(), figure: $("h-fig").value.trim(), hair: $("h-hair").value,
+      contextHumor: $("h-ctx").value, blind: $("h-blind").checked, createdAt: Date.now() };
+    if (logCol) logCol.add(o).catch((err) => { $("h-msg").textContent = "Not saved: " + err.message; });
+    else { log.push({ id: String(o.createdAt), ...o }); saveLocal(); renderLog(); }
+    $("h-fig").value = ""; $("h-blind").checked = false;
+  });
+  $("t-log").addEventListener("click", (e) => {
+    const id = e.target.dataset && e.target.dataset.id; if (!id) return;
+    if (logCol) logCol.doc(id).delete().catch((err) => { $("h-msg").textContent = "Not removed: " + err.message; });
+    else { log = log.filter((o) => o.id !== id); saveLocal(); renderLog(); }
   });
 
   const saved = load("cipher");
