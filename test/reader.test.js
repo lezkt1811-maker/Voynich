@@ -59,6 +59,8 @@ test("analysis prompt carries the framework and the safety rules", () => {
   assert.match(p, /black = melancholic/);
   assert.match(p, /never present anything as a translation/);
   assert.match(p, /Never give medical advice/);
+  assert.match(p, /never write a passage, recipe, or message to readers/);
+  assert.match(p, /say what a plant or water is used for/);
 });
 
 test("normalizeAnalysis keeps known fields and tolerates junk", () => {

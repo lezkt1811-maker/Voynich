@@ -196,7 +196,7 @@
       note ? "The researcher's note: " + note : "",
       "Describe it in as much detail as the image allows, for an ongoing hobby investigation. Separate what is visible from interpretation.",
       "Then apply the researcher's own speculative framework, labelled as such: hair colour gives a humor (" + hair + "); a zodiac sign gives the season a plant grows (" + zod + "); plants may relate to women's reproductive-health themes (fertility, contraception, fibroids, cysts, cramps).",
-      "Rules: the manuscript is undeciphered, so never present anything as a translation. Never give medical advice or say anything cures anything. If hair is uncoloured or the colour is unclear, say so rather than guessing. Transcribe visible script in EVA only where you can actually read the glyphs, otherwise null.",
+      "Rules: the manuscript is undeciphered, so never present anything as a translation, and never write a passage, recipe, or message to readers. Never give medical advice, say what a plant or water is used for, or say anything cures anything. A plant's theme is a label under the framework only, not a claim about its effect. If hair is uncoloured or the colour is unclear, say so rather than guessing. Transcribe visible script in EVA only where you can actually read the glyphs, otherwise null.",
       "Reply with only a JSON object of this shape:",
       JSON.stringify({
         summary: "2-3 sentence overview",
