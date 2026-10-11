@@ -59,6 +59,53 @@
       aiin: { gloss: "(example) plural", example: true },
     },
 
+
+    // Theories from the online conversation, each with where it came from and
+    // how well it holds up. status: supported | partly | open | contested |
+    // unverified | unsupported.
+    theories: [
+      { claim: "Menstrual blood in moon water grows new plants with no seed.",
+        source: "TikTok videos, Oct 2026", status: "unsupported",
+        evidence: "Every plant comes from a seed, spore or cutting; spontaneous generation was disproved in the 1860s. In the videos the plants are cuttings that rooted in the water. Green growth that appears on its own is algae or mould from spores in the air." },
+      { claim: "Blood made 'hair' grow on the roots.",
+        source: "TikTok videos, Oct 2026", status: "unsupported",
+        evidence: "Those are root hairs. Every plant grows them to take up water, and cuttings rooted in water show them very clearly." },
+      { claim: "Menstrual blood works as plant fertiliser.",
+        source: "TikTok videos, Oct 2026", status: "partly",
+        evidence: "Blood holds nitrogen and iron, and dried blood meal is a real garden fertiliser. Diluted fresh blood in water also feeds bacteria and starts to smell within days." },
+      { claim: "The Voynich is a guide by women for creating life from menstrual blood.",
+        source: "TikTok theory, Oct 2026", status: "unverified",
+        evidence: "The text is undeciphered, so no reading of it supports or rules this out. The idea comes from the pictures and from the videos above, not from the text." },
+      { claim: "The bathing pages show wombs, fallopian tubes and ovaries.",
+        source: "TikTok; also proposed by some researchers", status: "open",
+        evidence: "A long-standing interpretation of the tubes and pools, alongside others: medieval spa and bath books, sacred wells, or the flow of fluids in the body. Nothing in the manuscript confirms any one of them." },
+      { claim: "'When women give their blood back to the earth...' is a Hopi prophecy.",
+        source: "Widely shared online", status: "unverified",
+        evidence: "No published Hopi source for the saying has been traced. It circulates online without a citation." },
+      { claim: "Regulus is the red star, the heart of Leo.",
+        source: "TikTok mythology video", status: "partly",
+        evidence: "Regulus is the brightest star in Leo and was called the lion's heart (Cor Leonis). It is blue-white, not red. The red 'heart' star is Antares, in Scorpius. The Blue Star Kachina comes from retellings of Hopi prophecy, mainly Frank Waters' 'Book of the Hopi' (1963)." },
+      { claim: "A goddess-worshipping matriarchal Europe was ended by invaders from the steppe.",
+        source: "TikTok creator's book project", status: "contested",
+        evidence: "Large migrations from the steppe around 3000 BCE are well supported by ancient DNA. That earlier Europe was a matriarchy is Marija Gimbutas' theory, and most archaeologists dispute it." },
+      { claim: "Menstrual blood contains regenerative stem cells.",
+        source: "TikTok creator", status: "supported",
+        evidence: "Menstrual blood-derived stem cells have been studied since 2007 and look promising. The research is early and no treatment based on them is approved." },
+      { claim: "The womb is fully replaced every three weeks.",
+        source: "TikTok creator", status: "partly",
+        evidence: "The womb's lining (endometrium) sheds and regrows about once a cycle, typically 21 to 35 days. The womb itself is not replaced." },
+      { claim: "The moon's pull on water affects how seeds germinate and grow.",
+        source: "Moon-gardening book cited by the creator", status: "contested",
+        evidence: "Planting by the moon is an old folk practice. Studies are mixed, and the moon's tidal pull on something as small as a seed or a pot is far too weak to matter." },
+      { claim: "A seed held in your mouth grows a plant that supplies what your body lacks.",
+        source: "Moon-gardening book cited by the creator", status: "unsupported",
+        evidence: "No study shows a plant changing its nutrients to match the person whose saliva touched the seed." },
+      { claim: "The manuscript has been tested and is genuine.",
+        source: "TikTok creator", status: "supported",
+        evidence: "Its vellum was radiocarbon-dated to 1404-1438 (University of Arizona, 2009), and most scholars accept it as a genuine 15th-century book. Whether its text holds a real language or code is still unknown." },
+    ],
+    theorySafety: "If you try this, use it only to fertilise houseplants. Don't drink it or bathe in it: water with blood in it grows bacteria fast and can cause infections.",
+
     // Section notes. Balneological ("bathing") pages run roughly f75r-f84v.
     sections: [
       { name: "zodiac",       from: "f70v", to: "f73v" },
