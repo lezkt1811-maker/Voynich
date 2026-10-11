@@ -128,6 +128,8 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
     </form>
     <div class="msg" id="up-msg">Connecting to the saved log...</div>
     <div class="col" id="entries"></div>
+    <div class="row"><button class="ghost" type="button" id="backup">Copy the whole investigation as JSON</button></div>
+    <textarea id="backup-text" readonly hidden></textarea>
   </section>
 
   <section class="col" id="heldout">
@@ -271,7 +273,9 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
   // otherwise only in this browser.
   let log = [], db = null, logCol = null;
   function renderLog() {
+    const keep = $("h-hair").value;
     $("h-hair").innerHTML = Object.keys(data.hairHumors).map((h) => `<option>${esc(h)}</option>`).join("");
+    if (data.hairHumors[keep]) $("h-hair").value = keep;
     const rows = R.hairConsistency(log, data);
     $("t-cons").innerHTML = rows.length
       ? "<tr><th>Hair</th><th>Rule says</th><th>Seen</th><th>Context agrees</th><th>Blind agrees</th><th>Folios</th></tr>" +
@@ -319,14 +323,18 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
     rate_limited: "Too many requests just now. Wait a minute, then press Analyse again.",
     image_rejected: "That image couldn't be read. Try a JPEG or PNG under the size limit.",
     invalid_json: "The analysis came back in an unexpected shape. Press Analyse again.",
-    refused: "Claude declined to analyse this image." };
+    refused: "Claude declined to analyse this image.",
+    image_missing: "The saved photo couldn't be loaded. Delete this entry and upload the photo again.",
+    unreadable_image: "This browser couldn't open that file as an image. Try a JPEG or PNG, or take a screenshot of it." };
   const errText = (e) => ERR[e && e.code] || ("Something went wrong (" + ((e && (e.code || e.message)) || "unknown") + "). Try again.");
   function li(items) { return items.length ? "<ul>" + items.join("") + "</ul>" : "<span class=\"src\">none noted</span>"; }
   function renderEntries() {
     if (!entries.length) { $("entries").innerHTML = "<p class=\"src\">No pages yet. Upload the first photo above, for example a bathing page such as f78r.</p>"; return; }
     $("entries").innerHTML = entries.map((en) => {
       const a = en.analysis ? R.normalizeAnalysis(en.analysis) : null;
-      const body = en.status === "analysing" ? "<p class=\"thinking\">Analysing the page. This can take up to a minute.</p>"
+      const stalled = en.status === "analysing" && !running.has(en.id) && Date.now() - (en.startedAt || en.createdAt) > 5 * 60 * 1000;
+      const body = stalled ? "<p class=\"msg\">This analysis didn't finish, probably because the page was closed. Press Analyse again.</p>"
+        : en.status === "analysing" ? "<p class=\"thinking\">Analysing the page. This can take up to a minute.</p>"
         : en.status === "failed" ? `<p class="msg">${esc(en.error || "The analysis failed.")}</p>`
         : a ? `
           <p>${esc(a.summary || "")}</p>
@@ -354,38 +362,70 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
           ${en.note ? `<p class="src">Your note: ${esc(en.note)}</p>` : ""}
           ${body}
           <div class="row">
-            ${sampler ? `<button class="ghost" data-act="analyse" data-id="${esc(en.id)}">${a ? "Analyse again" : "Analyse"}</button>` : ""}
-            ${a && a.figures.some((f) => data.hairHumors[(f.hairColour || "").toLowerCase()]) ? `<button class="ghost" data-act="tolog" data-id="${esc(en.id)}">Add figures to hair log</button>` : ""}
+            ${sampler && !running.has(en.id) ? `<button class="ghost" data-act="analyse" data-id="${esc(en.id)}">${a ? "Analyse again" : "Analyse"}</button>` : ""}
+            ${a && !en.sentToLog && a.figures.some((f) => data.hairHumors[(f.hairColour || "").toLowerCase()]) ? `<button class="ghost" data-act="tolog" data-id="${esc(en.id)}">Add figures to hair log</button>` : ""}
             ${a && a.visibleText.eva ? `<button class="ghost" data-act="toreader" data-id="${esc(en.id)}">Read visible EVA</button>` : ""}
             ${confirm}
           </div>
         </div></article>`;
     }).join("");
   }
+  const running = new Set();
   async function analyse(en, file) {
+    if (running.has(en.id)) return;
+    running.add(en.id);
     const ref = invCol.doc(en.id);
-    await ref.update({ status: "analysing", error: null });
     try {
-      const blob = file || await (await fetch("/_blob/" + en.imageId)).blob();
+      await ref.update({ status: "analysing", error: null, startedAt: Date.now() });
+      let blob = file;
+      if (!blob) {
+        const res = await fetch("/_blob/" + en.imageId);
+        if (!res.ok) throw { code: "image_missing" };
+        blob = await res.blob();
+      }
       const result = await sampler.json(R.analysisPrompt(data, en.folio, en.note), { images: [blob], modelTier: "complex", cache: false });
       await ref.update({ status: "done", analysis: R.normalizeAnalysis(result), analysedAt: Date.now() });
     } catch (e) {
       await ref.update({ status: "failed", error: errText(e) }).catch(() => {});
+    } finally {
+      running.delete(en.id); renderEntries();
     }
+  }
+
+  // Phone photos are often HEIC or very large. Re-encode anything the
+  // analysis can't take, or anything over the size cap, as a JPEG whose long
+  // side is at most 2400px. Returns the original file when it is already fine.
+  const MAX_SIDE = 2400, MAX_BYTES = 4 * 1024 * 1024;
+  let imageTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+  async function prepareImage(file) {
+    if (imageTypes.includes(file.type) && file.size <= MAX_BYTES) return file;
+    let bmp;
+    try { bmp = await createImageBitmap(file); }
+    catch (e) { throw { code: "unreadable_image" }; }
+    const scale = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    if (bmp.close) bmp.close();
+    const out = await new Promise((res) => c.toBlob(res, "image/jpeg", 0.88));
+    if (!out) throw { code: "unreadable_image" };
+    return out;
   }
   $("up-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const file = $("up-file").files[0];
-    if (!file || !assets || !invCol) return;
-    $("up-go").disabled = true; $("up-msg").textContent = "Uploading the photo...";
+    const picked = $("up-file").files[0];
+    if (!picked || !assets || !invCol) return;
+    $("up-go").disabled = true; $("up-msg").textContent = "Preparing the photo...";
     try {
+      const file = await prepareImage(picked);
+      $("up-msg").textContent = "Uploading the photo...";
       const up = await assets.upload(file);
       const en = { folio: $("up-folio").value.trim(), note: $("up-note").value.trim(), imageId: up.id, createdAt: Date.now(), status: sampler ? "analysing" : "uploaded" };
       const ref = await invCol.add(en);
       $("up-form").reset(); $("up-msg").textContent = sampler ? "Saved. Analysing now." : "Saved. Analysis isn't available in this view.";
       if (sampler) analyse({ id: ref.id, ...en }, file);
     } catch (err) {
-      $("up-msg").textContent = "The photo wasn't saved: " + (err.message || err.code) + ".";
+      $("up-msg").textContent = err && ERR[err.code] ? ERR[err.code] : "The photo wasn't saved (" + ((err && (err.message || err.code)) || "unknown error") + "). Try again.";
     } finally { $("up-go").disabled = false; }
   });
   $("entries").addEventListener("click", (e) => {
@@ -405,17 +445,28 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
         const o = { folio: en.folio || "unknown", figure: f.position || "", hair: f.hairColour.toLowerCase(), contextHumor: "", blind: false, createdAt: Date.now() };
         if (logCol) logCol.add(o); else { log.push({ id: String(Math.random()), ...o }); saveLocal(); renderLog(); }
       }
+      invCol.doc(en.id).update({ sentToLog: true }).catch(() => {});
       $("up-msg").textContent = `Added ${figs.length} figure${figs.length === 1 ? "" : "s"} to the hair-colour log. Fill in what the context suggests there.`;
     } else if (act === "toreader") {
-      $("folio").value = en.folio || ""; $("eva").value = R.normalizeAnalysis(en.analysis).visibleText.eva; render();
+      const a = R.normalizeAnalysis(en.analysis);
+      const sign = (a.zodiac.sign || "").toLowerCase();
+      $("folio").value = en.folio || ""; $("eva").value = a.visibleText.eva;
+      if (data.zodiac[sign]) $("zodiac").value = sign;
+      render();
       $("eva").scrollIntoView({ behavior: "smooth", block: "center" });
     }
+  });
+  $("backup").addEventListener("click", () => {
+    const json = JSON.stringify({ exportedAt: new Date().toISOString(), pages: entries, hairLog: log, cipher: cipherOf(data) }, null, 2);
+    const t = $("backup-text");
+    navigator.clipboard.writeText(json).then(() => { t.hidden = true; $("up-msg").textContent = "Copied. Paste it into a file to keep a backup."; },
+      () => { t.value = json; t.hidden = false; t.select(); $("up-msg").textContent = "Copy was blocked here. The JSON is selected below; press Ctrl+C or Cmd+C."; });
   });
   if (window.claude && window.claude.use) {
     Promise.all([window.claude.use("db"), window.claude.use("assets"), window.claude.use("sample")]).then(async ([d, as, sm]) => {
       if (!d) { $("investigation").hidden = true; return; }
       assets = as;
-      if (sm) { const lim = await sm.limits().catch(() => null); if (lim && lim.images) { sampler = sm; $("up-file").accept = lim.images.mediaTypes.join(","); } }
+      if (sm) { const lim = await sm.limits().catch(() => null); if (lim && lim.images) { sampler = sm; imageTypes = lim.images.mediaTypes; } }
       if (!assets) $("up-form").hidden = true;
       $("up-msg").textContent = !assets ? "You can read the log here, but only editors of this page can add photos."
         : !sampler ? "Photos will be saved, but analysis isn't available in this view." : "";
