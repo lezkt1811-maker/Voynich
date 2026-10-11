@@ -4,15 +4,15 @@
 /* Layout: a two-column workbench (inputs | reading) over a reference strip of the tables and the cipher editor. */
 :root {
   --bg: #eef3f0; --panel: #f9fbfa; --ink: #1d2a26; --muted: #5b6b66;
-  --line: #c9d6d1; --pool: #2c6a58; --pool-soft: #d6e8e1; --warn: #8a4b12; --warn-soft: #f6e7d6;
+  --line: #c9d6d1; --pool: #2c6a58; --pool-soft: #d6e8e1; --warn: #8a4b12; --warn-soft: #f6e7d6; --ok: #2d6b3a; --ok-soft: #dcefe0; --bad: #9b2c2c; --bad-soft: #f7dede; --mid: #6b5d1f; --mid-soft: #f1ebcf;
   --display: "Alegreya", Georgia, serif; --body: "IBM Plex Sans", system-ui, sans-serif; --mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #121a18; --panel: #1a2421; --ink: #dfe9e5; --muted: #93a6a0;
-  --line: #2e3d39; --pool: #7cc4ad; --pool-soft: #1f3a32; --warn: #f0b27a; --warn-soft: #3a2a1b; color-scheme: dark } }
+  --line: #2e3d39; --pool: #7cc4ad; --pool-soft: #1f3a32; --warn: #f0b27a; --warn-soft: #3a2a1b; --ok: #8fd3a0; --ok-soft: #1d3a25; --bad: #f2a3a3; --bad-soft: #3d2020; --mid: #e3cf7c; --mid-soft: #37311a; color-scheme: dark } }
 :root[data-theme="dark"] {
   --bg: #121a18; --panel: #1a2421; --ink: #dfe9e5; --muted: #93a6a0;
-  --line: #2e3d39; --pool: #7cc4ad; --pool-soft: #1f3a32; --warn: #f0b27a; --warn-soft: #3a2a1b; color-scheme: dark }
+  --line: #2e3d39; --pool: #7cc4ad; --pool-soft: #1f3a32; --warn: #f0b27a; --warn-soft: #3a2a1b; --ok: #8fd3a0; --ok-soft: #1d3a25; --bad: #f2a3a3; --bad-soft: #3d2020; --mid: #e3cf7c; --mid-soft: #37311a; color-scheme: dark }
 body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
 .wrap { max-width: 1100px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 48px; display: grid; gap: 28px; }
 h1, h2 { font-family: var(--display); text-wrap: balance; margin: 0; }
@@ -77,6 +77,16 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
 .entry .eyebrow { display: block; margin-bottom: 2px; }
 .entry ul { margin: 0; padding-left: 1.1rem; display: grid; gap: 4px; font-size: .9rem; }
 .thinking { color: var(--muted); font-style: italic; }
+.theories { display: grid; gap: 10px; }
+.theory { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: 4px 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+@media (max-width: 560px) { .theory { grid-template-columns: minmax(0, 1fr); } }
+.theory h3 { font-family: var(--body); font-size: .98rem; font-weight: 600; margin: 0; }
+.theory p { margin: 0; font-size: .9rem; }
+.status { justify-self: start; align-self: start; font-size: .74rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; border-radius: 999px; padding: 2px 10px; }
+.s-supported { background: var(--ok-soft); color: var(--ok); }
+.s-partly, .s-open, .s-contested { background: var(--mid-soft); color: var(--mid); }
+.s-unverified { background: var(--pool-soft); color: var(--pool); }
+.s-unsupported { background: var(--bad-soft); color: var(--bad); }
 </style>
 
 <div class="wrap">
@@ -130,6 +140,13 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
     <div class="col" id="entries"></div>
     <div class="row"><button class="ghost" type="button" id="backup">Copy the whole investigation as JSON</button></div>
     <textarea id="backup-text" readonly hidden></textarea>
+  </section>
+
+  <section class="col" id="theories">
+    <h2>Theories and evidence</h2>
+    <p class="lede">Claims from the online conversation around the manuscript, with where each one came from and how well it holds up today.</p>
+    <div class="banner" id="theory-safety"></div>
+    <div class="theories" id="theory-list"></div>
   </section>
 
   <section class="col" id="heldout">
@@ -250,6 +267,14 @@ th { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color:
       () => { t.select(); $("msg").textContent = "Copy was blocked here. The JSON is selected; press Ctrl+C or Cmd+C."; });
   });
 
+
+  // Theories
+  const STATUS = { supported: "Supported", partly: "Partly true", open: "Open question", contested: "Contested", unverified: "Unverified", unsupported: "Not supported" };
+  $("theory-safety").textContent = BASE.theorySafety;
+  $("theory-list").innerHTML = BASE.theories.map((t) => `<div class="theory">
+      <span class="status s-${esc(t.status)}">${esc(STATUS[t.status] || t.status)}</span>
+      <div class="col" style="gap:4px"><h3>${esc(t.claim)}</h3><p>${esc(t.evidence)}</p><p class="src">Source: ${esc(t.source)}</p></div>
+    </div>`).join("");
 
   // Held-out test
   $("dev").value = "# Example only. Paste the folio you built the cipher on.\nqokedy.shedy.daiin.chedy";
