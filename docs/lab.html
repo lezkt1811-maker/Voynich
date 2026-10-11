@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Voynich Cipher Lab</title>
 <style>
-/* Dark research-archive look. Accents are violet, pink and cyan; no yellow or lime. */
+/* Black background, white text, bright neon green accents. Alerts use white with dashed borders. */
 :root {
-  --bg: #050508; --panel: #0c0b12; --panel2: #15121d; --ink: #f0edf5; --muted: #a79fb4;
-  --violet: #8b00ff; --violet-soft: #2a0a4d; --pink: #ff007f; --pink-soft: #3d0320;
-  --cyan: #00f0ff; --cyan-soft: #04303a; --line: #2b2338; --line2: #443657;
+  --bg: #000000; --panel: #050d05; --panel2: #0a160a; --ink: #ffffff; --muted: #d6d6d6;
+  --accent: #39ff14; --accent-soft: #0f2e0c; --alert: #ffffff; --alert-soft: #0f2e0c;
+  --line: #1d3a1b; --line2: #3a7a34;
   --display: Georgia, "Times New Roman", serif; --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --mono: ui-monospace, Menlo, Consolas, monospace;
 }
 * { box-sizing: border-box; }
@@ -20,10 +20,10 @@ h2 { font: 600 1.3rem var(--display); margin: 0 0 4px; }
 h3 { font: 600 1.05rem var(--body); margin: 0; }
 p { margin: 0; color: var(--muted); max-width: 70ch; }
 code, .mono { font-family: var(--mono); font-size: .92rem; overflow-wrap: anywhere; }
-.banner { background: var(--pink-soft); border: 1px solid var(--pink); color: var(--ink); border-radius: 8px; padding: 12px 14px; font-size: .95rem; }
+.banner { background: var(--alert-soft); border: 1px solid var(--accent); color: var(--ink); border-radius: 8px; padding: 12px 14px; font-size: .95rem; }
 nav { display: flex; flex-wrap: wrap; gap: 8px; position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 8px 0; border-bottom: 1px solid var(--line); }
 nav button { min-height: 48px; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--line2); background: var(--panel); color: var(--ink); font: inherit; cursor: pointer; }
-nav button[aria-pressed="true"] { border-color: var(--cyan); box-shadow: inset 0 -3px 0 var(--cyan); }
+nav button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 -3px 0 var(--accent); }
 .view { display: none; gap: 18px; }
 .view.on { display: grid; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
@@ -33,41 +33,42 @@ label { display: grid; gap: 6px; font-size: .95rem; color: var(--ink); }
 label.inline { display: flex; align-items: center; gap: 8px; min-height: 48px; }
 input, select, textarea { font: inherit; color: var(--ink); background: var(--panel2); border: 1px solid var(--line2); border-radius: 8px; padding: 10px 12px; min-height: 48px; width: 100%; }
 textarea { min-height: 9rem; font-family: var(--mono); font-size: .95rem; resize: vertical; }
-input[type="checkbox"] { width: 22px; height: 22px; min-height: 22px; accent-color: var(--violet); }
-input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+input[type="checkbox"] { width: 22px; height: 22px; min-height: 22px; accent-color: var(--accent); }
+input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .btns { display: flex; flex-wrap: wrap; gap: 10px; }
 button.act, button.ghost, button.danger { min-height: 48px; padding: 10px 16px; border-radius: 8px; font: 600 1rem var(--body); cursor: pointer; }
-button.act { background: var(--violet); color: #fff; border: 0; }
-button.ghost { background: none; color: var(--cyan); border: 1px solid var(--cyan); }
-button.danger { background: none; color: var(--pink); border: 1px solid var(--pink); }
-.msg { min-height: 1.4em; font-size: .95rem; color: var(--cyan); }
-.msg.err { color: var(--pink); }
+button.act { background: var(--accent); color: #000; border: 0; font-weight: 700; }
+button.ghost { background: none; color: var(--accent); border: 1px solid var(--accent); }
+button.danger { background: none; color: var(--alert); border: 1px solid var(--alert); }
+.msg { min-height: 1.4em; font-size: .95rem; color: var(--accent); }
+.msg.err { color: var(--alert); text-decoration: underline; }
+.msg.err::before { content: "! "; }
 .stats { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 .stat { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 2px; }
 .stat b { font: 600 1.6rem var(--display); }
 .stat span { font-size: .88rem; color: var(--muted); }
-.stat.key { border-color: var(--violet); }
+.stat.key { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
 .tbl { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: .95rem; }
 th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; }
-tr.pick td { background: var(--violet-soft); }
-.pill { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: .85rem; background: var(--cyan-soft); color: var(--cyan); }
-.pill.pink { background: var(--pink-soft); color: var(--pink); }
+tr.pick td { background: var(--accent-soft); }
+.pill { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: .85rem; background: var(--accent-soft); color: var(--accent); }
+.pill.pink { background: var(--alert-soft); color: var(--alert); }
 .pill.muted { background: var(--panel2); color: var(--muted); }
 .note { font-size: .9rem; color: var(--muted); }
 .tokens { display: flex; flex-wrap: wrap; gap: 8px; }
 .tok { border: 1px solid var(--line2); border-radius: 8px; padding: 6px 8px; display: grid; gap: 2px; min-width: 5rem; }
-.tok.open { border-color: var(--cyan); }
-.tok.unmapped { border-color: var(--pink); }
+.tok.open { border-color: var(--accent); }
+.tok.unmapped { border-color: var(--alert); border-style: dashed; }
 .piece { font-family: var(--mono); }
-.piece.rule { color: var(--cyan); }
-.piece.none { color: var(--pink); }
+.piece.rule { color: var(--accent); }
+.piece.none { color: var(--alert); }
 .piece small { color: var(--muted); display: block; font-family: var(--body); }
 .sbs { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 900px) { .sbs { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .locus { font-family: var(--mono); font-size: .8rem; color: var(--muted); }
-details summary { cursor: pointer; min-height: 48px; display: flex; align-items: center; color: var(--cyan); }
+details summary { cursor: pointer; min-height: 48px; display: flex; align-items: center; color: var(--accent); }
 footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
 .tri { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 900px) { .tri { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
@@ -239,6 +240,12 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
         <label>Confidence <select id="f-conf"></select></label>
         <label>Research status <select id="f-status"></select></label>
         <label style="grid-column:1/-1">Personal notes <textarea id="f-notes" rows="2"></textarea></label>
+        <div style="grid-column:1/-1;display:grid;gap:8px">
+          <label>Photo of the page (kept in this browser, resized to at most 1200 px) <input type="file" id="f-photo" accept="image/*"></label>
+          <img id="f-photo-preview" alt="Photo of the folio being edited" hidden style="max-width:100%;max-height:260px;border:1px solid var(--line2);border-radius:8px">
+          <div class="btns"><button class="ghost" type="button" id="f-photo-clear">Remove photo</button></div>
+          <div class="msg" id="f-photo-msg" role="status"></div>
+        </div>
         <div class="btns" style="grid-column:1/-1">
           <button class="act" type="submit">Save folio</button>
           <button class="ghost" type="button" id="f-dup">Duplicate</button>
@@ -465,10 +472,11 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
 <script>
 (function () {
   const L = window.VoynichLab;
-  const KEY = "voynich-lab-v1", SAMPLE_KEY = "voynich-lab-sample";
+  const KEY = "voynich-lab-v1";
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const now = () => new Date().toISOString();
+  const NOT_SAVED = "Kept on this page but NOT saved to browser storage. See the banner at the top, then download a backup.";
 
   // ---- storage: every read and write is guarded, because browsers can refuse it
   let storeOK = true;
@@ -491,14 +499,16 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
     return L.emptyState();
   }
   let state = loadState();
+  // Returns true when the lab was written to browser storage. A failure is
+  // shown in the storage banner, so nothing is lost without the user knowing.
   function save() {
-    try { localStorage.setItem(KEY, L.exportBackup(state)); }
-    catch (e) { storeOK = false; setStoreNote(); }
+    try { localStorage.setItem(KEY, L.exportBackup(state)); storeOK = true; setStoreNote(); return true; }
+    catch (e) { storeOK = false; setStoreNote(); return false; }
   }
   function setStoreNote() {
     $("store-note").textContent = storeOK
       ? "Saved in this browser only. Clearing site data or using another browser will not show these records. Download a backup from the Data section regularly."
-      : "This browser will not save research data here (storage is blocked). Work is kept only on this page until you reload. Download a backup before leaving.";
+      : "NOT SAVED: this browser refused to store the latest change (storage is full or blocked). Everything still on this page is safe until you reload. Download a backup now from the Data section, then remove large photos if storage is full.";
     if (loadProblem) $("store-note").textContent += " " + loadProblem;
     $("data-reminder").textContent = $("store-note").textContent;
   }
@@ -581,7 +591,6 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
       : `<p class="note">No sequence of this length repeats.</p>`;
   }
   ["an-src", "an-conv", "an-spaces", "an-punct"].forEach((id) => $(id).addEventListener("input", renderAnalysis));
-  $("an-src").addEventListener("change", () => { try { localStorage.setItem(SAMPLE_KEY, $("an-src").value); } catch (e) {} });
   ["an-q", "an-whole"].forEach((id) => $(id).addEventListener("input", renderSearch));
   $("an-n").addEventListener("change", renderGrams);
 
@@ -614,7 +623,8 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
       const prior = editingRule ? state.rules.find((r) => r.id === editingRule) : null;
       const rec = L.cleanRule({ ...ruleFromForm(), id: editingRule || undefined, dateAdded: prior ? prior.dateAdded : now() });
       state.rules = editingRule ? state.rules.map((r) => (r.id === editingRule ? rec : r)) : state.rules.concat([rec]);
-      const wasEdit = !!editingRule; save(); clearRuleForm(); $("rule-msg").textContent = wasEdit ? "Rule updated." : "Rule saved.";
+      const wasEdit = !!editingRule; const ok = save(); clearRuleForm();
+      $("rule-msg").textContent = ok ? (wasEdit ? "Rule updated." : "Rule saved.") : NOT_SAVED;
     } catch (err) { $("rule-msg").textContent = err.message; $("rule-msg").classList.add("err"); }
   });
   $("r-clear").addEventListener("click", clearRuleForm);
@@ -634,7 +644,6 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
       renderDash();
     }
   });
-  $("cb-src").addEventListener("change", () => { try { localStorage.setItem(SAMPLE_KEY, $("cb-src").value); } catch (e) {} });
 
   function passage() { return $("cb-src").value.trim() ? $("cb-src").value : $("an-src").value; }
   $("cb-a").addEventListener("click", () => {
@@ -675,6 +684,9 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
     for (const [id, key] of Object.entries(FIELDS)) $(id).value = f ? f[key] : (key === "confidence" ? "low" : key === "status" ? "unreviewed" : "");
     // While a blind test hides this folio, its drawing descriptions are blank and read-only.
     const hidden = !!f && hiddenNow().has(f.folio);
+    $("f-photo").disabled = hidden; $("f-photo-clear").disabled = hidden;
+    showPhoto(f && !hidden ? f.photo : "");
+    flash("f-photo-msg", "");
     for (const [key, id] of Object.entries(VISUAL_IDS)) {
       $(id).value = hidden ? "" : (f ? f[key] : $(id).value);
       $(id).readOnly = hidden;
@@ -697,11 +709,12 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
       const keepVisual = !!prior && hiddenNow().has(prior.folio);
       const data = folioFromForm();
       if (keepVisual) for (const key of Object.keys(VISUAL_IDS)) data[key] = prior[key];
+      data.photo = keepVisual ? prior.photo : pendingPhoto;
       const rec = L.cleanFolio({ ...data, id: editingFolio || undefined, related: prior ? prior.related : [],
         dateAdded: prior ? prior.dateAdded : now(), dateEdited: now() });
       state.folios = editingFolio ? state.folios.map((f) => (f.id === editingFolio ? rec : f)) : state.folios.concat([rec]);
-      editingFolio = rec.id; save();
-      fillFolio(rec); $("folio-msg").textContent = "Folio saved.";
+      editingFolio = rec.id; const ok = save();
+      fillFolio(rec); $("folio-msg").textContent = ok ? "Folio saved." : NOT_SAVED;
     } catch (err) { $("folio-msg").textContent = err.message; $("folio-msg").classList.add("err"); }
   });
   $("f-new").addEventListener("click", () => fillFolio(null));
@@ -873,7 +886,7 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
       for (const [k, id] of Object.entries(PLANT_IDS)) o[k] = keepVisual && L.PLANT_VISUAL_FIELDS.includes(k) ? prior[k] : $(id).value;
       const rec = L.cleanPlant({ ...o, id: editingPlant || undefined });
       state.plants = prior ? state.plants.map((p) => (p.id === prior.id ? rec : p)) : state.plants.concat([rec]);
-      save(); fillPlant(rec); flash("plant-msg", "Plant record saved.");
+      const ok = save(); fillPlant(rec); flash("plant-msg", ok ? "Plant record saved." : NOT_SAVED, !ok);
     } catch (err) { flash("plant-msg", err.message, true); }
   });
   $("p-new").addEventListener("click", () => fillPlant(null));
@@ -917,7 +930,7 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
         association: $("s-assoc").value, folios: listOf($("s-folios").value), description: $("s-desc").value,
         notes: $("s-notes").value, dateAdded: prior ? prior.dateAdded : now() });
       state.symbols = prior ? state.symbols.map((s) => (s.id === prior.id ? rec : s)) : state.symbols.concat([rec]);
-      save(); fillSymbol(rec); flash("sym-msg", "Symbol saved.");
+      const ok = save(); fillSymbol(rec); flash("sym-msg", ok ? "Symbol saved." : NOT_SAVED, !ok);
     } catch (err) { flash("sym-msg", err.message, true); }
   });
   $("s-new").addEventListener("click", () => fillSymbol(null));
@@ -1016,9 +1029,9 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
       const rec = L.cleanTranslation({ passage, folio: $("tr-folio").value.trim(), interpretation: $("tr-interp").value,
         alternatives: $("tr-alt").value, confidence: $("tr-conf").value, evidenceFor: $("tr-for").value,
         evidenceAgainst: $("tr-against").value, rules: L.rulesUsed(passage, state.rules, ptOpts()), dateAdded: now() });
-      state.translations = state.translations.concat([rec]); save();
+      state.translations = state.translations.concat([rec]); const ok = save();
       $("tr-interp").value = ""; $("tr-alt").value = ""; $("tr-for").value = ""; $("tr-against").value = "";
-      renderTranslations(); renderLiteral(passage); flash("tr-save-msg", "Translation saved as a hypothesis.");
+      renderTranslations(); renderLiteral(passage); flash("tr-save-msg", ok ? "Translation saved as a hypothesis." : NOT_SAVED, !ok);
     } catch (err) { flash("tr-save-msg", err.message, true); }
   });
   $("tr-list").addEventListener("click", (e) => {
@@ -1064,7 +1077,8 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
         revealedAt: prior ? prior.revealedAt : null, supporting: $("h-sup").value, contradicting: $("h-con").value,
         testResults: $("h-res").value, notes: $("h-notes").value, dateAdded: prior ? prior.dateAdded : now(), dateEdited: now() });
       state.hypotheses = prior ? state.hypotheses.map((h) => (h.id === prior.id ? rec : h)) : state.hypotheses.concat([rec]);
-      save(); fillHyp(rec); flash("hyp-msg", locked ? "Saved. Predictions were already locked, so they and the blind folios are unchanged." : "Hypothesis saved.");
+      const ok = save(); fillHyp(rec);
+      flash("hyp-msg", !ok ? NOT_SAVED : locked ? "Saved. Predictions were already locked, so they and the blind folios are unchanged." : "Hypothesis saved.", !ok);
       renderDash();
     } catch (err) { flash("hyp-msg", err.message, true); }
   });
@@ -1104,9 +1118,65 @@ footer { color: var(--muted); font-size: .85rem; padding-bottom: 24px; }
   $("x-report").addEventListener("click", () => { download("voynich-report-" + stamp() + ".txt", L.buildReport(state), "text/plain"); flash("x-msg", "Report downloaded. Hidden blind-test descriptions are left out."); });
   $("x-plant-csv").addEventListener("click", () => { download("voynich-plants-" + stamp() + ".csv", L.toCSV(state.plants, PLANT_COLUMNS), "text/csv"); flash("x-msg", "Plant CSV downloaded."); });
 
+  // ---- drafts: the workspace fields (passages, searches, options) are kept as
+  // they are typed, so an unfinished analysis is still there after a reload.
+  // Record forms are not drafted; they are saved explicitly with their buttons.
+  const DRAFT_KEY = "voynich-lab-drafts";
+  const DRAFT_IDS = ["an-src", "an-conv", "an-spaces", "an-punct", "an-q", "an-whole", "an-n", "cb-src", "cb-prio", "pt-a", "pt-b", "pt-q", "pt-n", "tr-src"];
+  function readDrafts() { try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || "{}") || {}; } catch (e) { return {}; } }
+  function saveDraft(id) {
+    const d = readDrafts(); const el = $(id);
+    d[id] = el.type === "checkbox" ? el.checked : el.value;
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch (e) {}
+  }
+  function restoreDrafts() {
+    const d = readDrafts();
+    for (const id of DRAFT_IDS) {
+      if (!(id in d)) continue;
+      const el = $(id);
+      if (el.type === "checkbox") el.checked = !!d[id]; else if (d[id] != null) el.value = String(d[id]);
+    }
+  }
+  for (const id of DRAFT_IDS) {
+    const el = $(id);
+    el.addEventListener(el.type === "checkbox" || el.tagName === "SELECT" ? "change" : "input", () => saveDraft(id));
+  }
+
+  // ---- photos: resized in the browser so they fit in browser storage
+  function shrinkImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, 1200 / Math.max(img.width, img.height));
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL("image/jpeg", 0.8));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("This browser could not open that image. Try a JPEG or PNG.")); };
+      img.src = url;
+    });
+  }
+  let pendingPhoto = "";
+  function showPhoto(url) {
+    pendingPhoto = url || "";
+    $("f-photo-preview").src = pendingPhoto;
+    $("f-photo-preview").hidden = !pendingPhoto;
+  }
+  $("f-photo").addEventListener("change", async () => {
+    const file = $("f-photo").files[0]; if (!file) return;
+    flash("f-photo-msg", "Preparing the photo...");
+    try { showPhoto(await shrinkImage(file)); flash("f-photo-msg", "Photo ready. Save the folio to keep it."); }
+    catch (err) { flash("f-photo-msg", err.message, true); }
+  });
+  $("f-photo-clear").addEventListener("click", () => {
+    showPhoto(""); $("f-photo").value = ""; flash("f-photo-msg", "Photo removed. Save the folio to apply this.");
+  });
+
   // ---- start
   setStoreNote();
-  try { const s = localStorage.getItem(SAMPLE_KEY); if (s) $("an-src").value = s; } catch (e) {}
+  restoreDrafts();
   if (!$("an-src").value) $("an-src").value = "# Illustrative only, not a manuscript transcription. Paste your own EVA here.\ndaiin.chedy.qokedy shedy.daiin";
   renderRules(); renderFolioTable(); renderAnalysis(); renderDash();
   fillPlant(null); fillSymbol(null); fillHyp(null); renderTranslations(); renderPatternSelects();

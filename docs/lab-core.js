@@ -293,6 +293,8 @@
     };
     for (const k of ["section", "transcription", "illustration", "botany", "figures", "astronomy", "interpretation",
       "alternatives", "evidenceFor", "evidenceAgainst", "sources", "notes"]) rec[k] = str(f[k]);
+    // A photo is kept only as an embedded JPEG, PNG or WebP image.
+    rec.photo = /^data:image\/(jpeg|png|webp);base64,/.test(str(f.photo)) ? str(f.photo) : "";
     return rec;
   }
 
@@ -509,6 +511,7 @@
       if (f.evidenceFor) add("  Evidence for: " + f.evidenceFor);
       if (f.evidenceAgainst) add("  Evidence against: " + f.evidenceAgainst);
       if (f.sources) add("  Sources: " + f.sources);
+      if (f.photo && !hidden.has(f.folio)) add("  Photo attached in the lab (not included in this text report).");
       add("  Confidence: " + f.confidence + "; status: " + f.status);
       for (const r of f.related) add("  Related to " + r.folio + ": " + r.reason + " (your reason, not a proven link)");
     }

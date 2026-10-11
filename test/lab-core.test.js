@@ -256,3 +256,10 @@ test("the stage 2 export round-trips every kind of record", () => {
   assert.strictEqual(back.data.symbols[0].name, "sun");
   assert.strictEqual(back.data.translations[0].passage, "daiin");
 });
+
+test("folio photos are kept only as embedded image data; anything else is dropped", () => {
+  const ok = L.cleanFolio({ folio: "f1r", photo: "data:image/jpeg;base64,AAAA" });
+  assert.strictEqual(ok.photo, "data:image/jpeg;base64,AAAA");
+  assert.strictEqual(L.cleanFolio({ folio: "f1r", photo: "https://example.com/x.jpg" }).photo, "");
+  assert.strictEqual(L.cleanFolio({ folio: "f1r", photo: "data:text/html;base64,AAAA" }).photo, "");
+});
